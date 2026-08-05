@@ -46,6 +46,85 @@ OpenRouter is a separate inference migration. It is not an Azure infrastructure 
 - Treat CRM data, eve workflow state, sandbox workspace state, and mirrored images as separate persistence planes.
 - Build production artifacts without production credentials.
 
+## Repository and deployment ownership
+
+The deployment is assembled through a reviewed one-way repository flow:
+
+```text
+trycompai/crm
+      |
+      | reviewed upstream merge
+      v
+Risk-Professionals/crm
+      |
+      | reviewed squashed subtree pull
+      v
+Risk-Professionals/directory/crm/
+      |
+      | root GitHub Actions and Bicep
+      v
+Azure
+```
+
+The repositories have separate responsibilities:
+
+| Repository or path | Responsibility |
+| --- | --- |
+| `trycompai/crm` | External upstream project. It is never a deployment source. |
+| `Risk-Professionals/crm` | Curated source fork for reviewed portable CRM changes and upstream integration. |
+| `Risk-Professionals/directory` | Canonical deployment repository, Azure infrastructure, release history, and production authority. |
+| `Risk-Professionals/directory/crm/` | Squashed Git subtree containing the complete CRM Bun and Turborepo workspace. |
+
+Use `crm/` as the subtree prefix. Do not place it under `apps/crm/`; the imported workspace already owns `apps/` and `packages/`. Use `--squash` for the initial import and every future pull. Do not mix squashed and unsquashed subtree operations, automate updates directly into `main`, or use routine `git subtree push` back to the source fork.
+
+A source-fork update does not change or deploy the directory copy. From a clean review branch in `Risk-Professionals/directory`, run:
+
+```bash
+./scripts/update-crm-subtree.sh
+```
+
+The script verifies the local `crm-source` remote, fetches `Risk-Professionals/crm/main`, and runs the equivalent of:
+
+```bash
+git fetch crm-source main
+git subtree pull --prefix=crm crm-source main --squash
+```
+
+`git fetch` alone only updates the local `crm-source/main` reference; it does not update `directory/crm/`. The resulting subtree commit must pass the root CRM CI workflow and be merged through review before it becomes deployable. Remote definitions are local Git configuration, so every new operator checkout must configure `crm-source` as documented in `directory/docs/crm-subtree.md`.
+
+Portable CRM changes should normally be made in `Risk-Professionals/crm` and pulled into the deployment repository. Risk Professionals deployment customizations may be made under `directory/crm/`. If such a change should return upstream, port it into a focused source-fork branch rather than making synchronization bidirectional.
+
+### Deployment declaration boundary
+
+The subtree import does not itself deploy anything. Deployment declarations live in the root of `Risk-Professionals/directory`, outside the subtree, while application source and container packaging remain inside `directory/crm/`:
+
+| Concern | Owning path or system |
+| --- | --- |
+| CRM application source, Prisma schema, migrations, health endpoints, and web/API/agent Dockerfiles | `directory/crm/` |
+| Azure topology, networking, identities, Key Vault references, storage, Container Apps, and ACA Jobs | `directory/infra/crm/` |
+| CRM CI | `directory/.github/workflows/crm-ci.yml` |
+| Staging deployment and smoke tests | `directory/.github/workflows/deploy-crm-staging.yml` |
+| Production digest promotion and rollback | `directory/.github/workflows/deploy-crm-production.yml` |
+| Entra application bootstrap and operations | `directory/docs/crm-entra-bootstrap.md` plus the external Microsoft Entra tenant |
+| Runtime configuration contract | `directory/crm/.env.example` |
+| Runtime secrets | Protected GitHub environments to Key Vault to ACA secret references |
+
+GitHub only executes workflows under the deployment repository's root `.github/workflows/`. Workflows retained under `directory/crm/.github/workflows/` are imported source history and are inert in the directory repository.
+
+Build every CRM image with `directory/crm` as the build context so the Bun lockfile and workspace packages remain together. Do not absorb the CRM into a root directory-repository workspace and do not use the whole directory repository as the container context. The build may select service-specific Dockerfiles relative to that context:
+
+```bash
+az acr build \
+  --registry "$ACR_NAME" \
+  --image "crm-web:${GITHUB_SHA}" \
+  --file apps/app/Dockerfile \
+  crm
+```
+
+Keep the existing directory tools and their production-only Easy Auth deployment unchanged. CRM receives separately bounded staging and production infrastructure, separate CRM deployment workflows, and a separate Entra application registration. The existing fixed three-app Bicep topology and shared ACA Easy Auth registration are not the CRM foundation.
+
+Record both the directory deployment commit and the imported CRM subtree source commit in release evidence. Images are built and promoted from the directory commit; the subtree split marker records the reviewed source-fork version.
+
 ## Final target architecture
 
 ```mermaid
@@ -1287,11 +1366,21 @@ Runbooks must cover:
 
 ## Expected new infrastructure and runtime areas
 
-- `infra/azure/` for IaC and environment parameters.
-- Container build files for web, API, agent, PostgreSQL wrapper, and sandbox broker.
-- `apps/sandbox-broker/` for the Dynamic Sessions execution image.
-- Azure sandbox adapter and snapshot modules under `apps/agent/agent/sandbox/`.
-- Deployment and operational runbooks under `docs/deployment/` and `docs/runbooks/`.
+Paths below are relative to `Risk-Professionals/directory`. CRM source paths therefore begin with `crm/`.
+
+- `crm/apps/app/Dockerfile` for the web image.
+- `crm/apps/api/Dockerfile` for the API image.
+- `crm/apps/agent/Dockerfile` for the agent image.
+- Container build files under `crm/` for the PostgreSQL wrapper and sandbox broker.
+- `crm/apps/sandbox-broker/` for the Dynamic Sessions execution image.
+- Azure sandbox adapter and snapshot modules under `crm/apps/agent/agent/sandbox/`.
+- `infra/crm/` for separately bounded CRM IaC, networking, staging and production parameters, Container Apps, storage, identities, and jobs.
+- `.github/workflows/crm-ci.yml` for subtree-aware CRM validation from the `crm/` working directory.
+- `.github/workflows/deploy-crm-staging.yml` for immutable image builds, migrations, staging deployment, and smoke tests.
+- `.github/workflows/deploy-crm-production.yml` for digest promotion, production verification, and application rollback.
+- `docs/crm-subtree.md` for the curated-fork and subtree synchronization contract.
+- `docs/crm-entra-bootstrap.md` for the separate CRM Entra registration and consent procedure.
+- Deployment and operational runbooks under `docs/deployment/crm/` and `docs/runbooks/crm/`.
 
 # Definition of complete
 
