@@ -57,8 +57,16 @@ export class EnvironmentVariables {
 	GOOGLE_CLIENT_SECRET?: string;
 
 	@IsOptional()
-	@IsUrl({ require_tld: false })
-	API_URL?: string;
+	@IsString()
+	MICROSOFT_CLIENT_ID?: string;
+
+	@IsOptional()
+	@IsString()
+	MICROSOFT_CLIENT_SECRET?: string;
+
+	@IsOptional()
+	@IsString()
+	MICROSOFT_TENANT_ID?: string;
 
 	@IsOptional()
 	@IsString()

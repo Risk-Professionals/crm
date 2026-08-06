@@ -4,6 +4,7 @@ import {
 	GoogleSyncStatus,
 	type MailboxSyncModel as MailboxSync,
 	RecordSource,
+	SyncProvider,
 } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { AgentTriggerService } from "../agent/agent-trigger.service";
@@ -85,7 +86,7 @@ export class CalendarSyncService {
 		};
 
 		let pageToken: string | undefined;
-		let syncToken = row.cursor ?? undefined;
+		let syncToken = row.cursor ?? row.providerCursor ?? undefined;
 		let written = 0;
 		let removed = 0;
 
@@ -259,6 +260,8 @@ export class CalendarSyncService {
 				contactId: match.contactId,
 				syncedByUserId: row.userId,
 				googleEventId: event.id ?? null,
+				provider: SyncProvider.GOOGLE,
+				providerEventId: event.id ?? null,
 			},
 			update: {
 				title: event.summary ?? null,
@@ -272,6 +275,8 @@ export class CalendarSyncService {
 				organizerEmail: organizer,
 				companyId: match.companyId,
 				contactId: match.contactId,
+				provider: SyncProvider.GOOGLE,
+				providerEventId: event.id ?? null,
 			},
 			select: { id: true },
 		});

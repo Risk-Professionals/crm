@@ -6,6 +6,7 @@ import { APIError } from "better-auth/api";
 import { organization } from "better-auth/plugins/organization";
 import { AUTH_COOKIE_PREFIX } from "./cookies";
 import { env } from "./env";
+import { MICROSOFT_GRAPH_SCOPES, microsoftProfileToUser } from "./microsoft";
 import { ensureWorkspaceMembership } from "./organization";
 import { SYNC_SCOPES } from "./scopes";
 import { notifySignedIn } from "./signed-in";
@@ -16,6 +17,18 @@ import {
 } from "./workspace";
 
 const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
+
+const microsoft = env.microsoft;
+
+if (microsoft) {
+	socialProviders.microsoft = {
+		...microsoft,
+		disableProfilePhoto: true,
+		scope: [...MICROSOFT_GRAPH_SCOPES],
+		mapProfileToUser: (profile) =>
+			microsoftProfileToUser(profile, microsoft.tenantId),
+	};
+}
 
 if (env.google) {
 	socialProviders.google = {
@@ -31,6 +44,7 @@ if (env.google) {
 
 export const auth = betterAuth({
 	appName: "CRM",
+	baseURL: env.appUrl,
 
 	database: prismaAdapter(db, {
 		provider: "postgresql",
@@ -45,7 +59,9 @@ export const auth = betterAuth({
 	account: {
 		accountLinking: {
 			enabled: true,
-			trustedProviders: ["google"],
+			disableImplicitLinking: true,
+			trustedProviders: ["google", "microsoft"],
+			allowDifferentEmails: false,
 		},
 	},
 

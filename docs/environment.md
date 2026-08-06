@@ -17,7 +17,7 @@ process's working directory to the workspace root and reads `.env`, then
 | Process | How it picks the file up |
 | --- | --- |
 | The NestJS API | `@crm/db` and `@crm/auth` both `import "@crm/env/load"` before reading anything |
-| The Next.js app | `next.config.ts` calls `loadRootEnv()`, then republishes `API_URL` as `NEXT_PUBLIC_API_URL` |
+| The Next.js app | `next.config.ts` calls `loadRootEnv()`; server code reads `API_INTERNAL_URL` while browser traffic stays same-origin |
 | The agent | `agent/agent.ts` and `@crm/db` |
 | The Prisma CLI | `packages/db/prisma.config.ts` |
 
@@ -58,23 +58,26 @@ Everything else has a working localhost default or is genuinely optional. That
 is the difference between a clone that runs and a clone that makes you read a
 table of variables first.
 
-### Google is the fourth value, and it is a pair
+### Microsoft Entra ID is the built-in deployment identity
 
-`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are what a clone starts with, and
-almost every install wants them: they are both the sign-in button and the Gmail
-and Calendar sync. They are nonetheless **optional**, because an install that
-signs in through [its own identity provider](./api.md#sso-is-a-row-not-a-deployment)
-should not have to create a Google Cloud project to do it.
+`MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and `MICROSOFT_TENANT_ID`
+configure the single-tenant Microsoft sign-in button. All three are optional so
+an installation can still use a row-backed SSO provider, but they must be set
+together. A partial tuple fails at startup rather than presenting a button that
+cannot complete.
 
-- **They are set together or not at all.** `packages/auth/src/env.ts` throws on
-  one without the other, because half a client is a sign-in button that fails at
-  Google with an error the reader cannot act on.
-- **Neither Google nor a provider is a state the sign-in page reports**, naming
-  the two variables — see [the SSO rules](./api.md#sso-is-a-row-not-a-deployment).
-  It is the one configuration mistake whose audience is the person who can fix
-  it, so it must not present as a blank page.
-- **Without them, Gmail sync is a capability the install does not have**, and
-  Settings → Connections says so rather than offering a button that cannot work.
+The redirect URI is `<APP_URL>/api/auth/callback/microsoft`. The tenant ID is
+the primary installation boundary and must be a tenant GUID. The client secret
+is a deployment secret; the client and tenant IDs are ordinary configuration.
+The Microsoft profile is mapped to the stable provider identity `${tid}:${oid}`
+and profile-photo fetching is disabled so a base64 image cannot enter cookies
+or response headers.
+
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` remain optional as a pair during
+the Microsoft mailbox migration. They keep existing Google account rows and
+Gmail/Calendar access usable until Microsoft Graph replaces them. Remove them
+only after the explicit Microsoft account-linking and Graph cutovers have
+closed their rollback windows.
 
 ### `ALLOWED_SIGN_IN`
 
@@ -133,20 +136,19 @@ for where it sits among the other gates.
 
 ## Where things are
 
-`API_URL` and `APP_URL` default to `http://localhost:3001` and
+`API_INTERNAL_URL` and `APP_URL` default to `http://localhost:3001` and
 `http://localhost:3000`. Set them for any real deployment.
 
-- **`API_URL`** is the origin that mints session cookies and serves
-  `/api/auth/*`. `next.config.ts` republishes it as `NEXT_PUBLIC_API_URL`, which
-  is what the browser's auth client and tRPC proxy use — so one variable
-  configures both sides. `BETTER_AUTH_URL` is still read as a fallback because
-  Better Auth's own tooling looks for it, but `API_URL` is the name to use.
-- **`APP_URL`** is where the browser is, and it is also the trusted-origin
-  allow-list: the set of origins allowed to call the API with credentials, and
-  the list Better Auth validates post-sign-in `callbackURL`s against.
+- **`API_INTERNAL_URL`** is the private NestJS service origin used only by the
+  Next.js server, same-origin `/api/*` proxy, and server-side tRPC calls. It is
+  never published as a `NEXT_PUBLIC_*` value or embedded in browser JavaScript.
+  `API_URL` remains a temporary fallback for existing deployments.
+- **`APP_URL`** is the canonical public origin. Better Auth uses it as its base
+  URL, Microsoft and SSO callbacks are rooted there, and it is the trusted-origin
+  allow-list for credentialed requests and post-sign-in redirects.
   Comma-separate if the app is genuinely served from more than one origin; the
-  first is canonical. This replaced a separate `AUTH_TRUSTED_ORIGINS`, which
-  could only ever disagree with it.
+  first is canonical. `BETTER_AUTH_URL` remains a compatibility fallback when
+  `APP_URL` is unset.
 - **`AUTH_COOKIE_DOMAIN`** only when the API and the app are on different
   subdomains of one parent — then `.example.com`, so one cookie covers both. On
   localhost the shared cookie already works, because cookies ignore ports.
@@ -216,6 +218,12 @@ because it is not a variable at all — see
 | `GITHUB_TOKEN` | Raises the GitHub rate limit from 60/hour when matching profiles |
 | `BLOB_READ_WRITE_TOKEN` | Mirrors every logo and profile picture into Vercel Blob rather than linking them. Read by the API and the seed too — see below |
 | `AI_GATEWAY_API_KEY` | The model. Not needed on Vercel, where OIDC handles it |
+| `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN` | Vercel Sandbox credentials for the explicitly selected transitional backend |
+| `WORKFLOW_POSTGRES_URL` | Separate PostgreSQL database/role for durable eve workflow state |
+| `WORKFLOW_POSTGRES_JOB_PREFIX` | Queue namespace; production uses `crm` |
+| `WORKFLOW_POSTGRES_WORKER_CONCURRENCY` | Global work admitted by the one agent process; start at `4` |
+| `WORKFLOW_POSTGRES_MAX_POOL_SIZE` | Workflow pool cap; start at `10` |
+| `WORKFLOW_POSTGRES_APPLICATION_MANAGED_SHUTDOWN` | Set to `1` so eve drains the world during shutdown |
 | `AGENT_BRIDGE_SECRET` | Lets a rep talk to the agent from the contact sheet — [the bridge](./agent.md#the-bridge) |
 
 `apps/agent/agent/lib/capabilities.ts` is the single place that knows which are

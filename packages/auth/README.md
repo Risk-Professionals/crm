@@ -3,21 +3,20 @@
 [Better Auth](https://better-auth.com) configuration for the monorepo, backed by
 `@crm/db`.
 
-Enabled: Google sign-in, account linking, cookie-cached sessions, and
-database-backed rate limiting. This is an internal, single-tenant app — there
-are no organizations, and email + password is switched off so the only way in
-is a Google account.
+Enabled: Microsoft Entra ID and transitional Google sign-in, explicit account
+linking, cookie-cached sessions, and database-backed rate limiting. This is an
+internal, single-tenant app, and email plus password is disabled.
 
 ## Topology
 
 The **NestJS API** (`apps/api`, port 3001) mounts `/api/auth/*` via
 `@thallesp/nestjs-better-auth` and is the only process that writes session
 cookies. The **Next.js app** (`apps/app`, port 3000) imports this package on the
-server to *read* sessions straight from Postgres, and points its browser client
-at the API for sign-in and sign-out.
+server to *read* sessions straight from Postgres and proxies the same-origin
+`/api/auth/*` routes to the API.
 
-Both processes therefore need the same `BETTER_AUTH_SECRET` and `DATABASE_URL`,
-or the cookie one writes will not verify in the other.
+Both processes therefore need the same `BETTER_AUTH_SECRET`, `DATABASE_URL`, and
+canonical `APP_URL`, or the cookie and callback behavior will disagree.
 
 ## Usage
 
@@ -45,14 +44,12 @@ export const POST = auth.handler;
 ```ts
 import { signIn, signOut, useSession } from "@crm/auth/client";
 
-await signIn.social({ provider: "google", callbackURL: "/" });
+await signIn.social({ provider: "microsoft", callbackURL: "/" });
 ```
 
-`NEXT_PUBLIC_API_URL` decides which origin the client talks to. It must point at
-whichever process mounts the handler — the NestJS API. The Next.js app inlines
-it at build time from `API_URL`, in `next.config.ts`, so there is one variable
-rather than two spellings of one origin. Unset, the client uses the current
-origin.
+The browser client uses the current public origin. Next.js proxies auth and tRPC
+requests to the server-only `API_INTERNAL_URL`; that private service address is
+never compiled into browser JavaScript.
 
 The client plugin list mirrors the server plugin list. Keep them in sync or the
 inferred client API will drift from the routes the server exposes.
@@ -70,9 +67,11 @@ whatever `process.env` its host process has, and `src/env.ts` imports
 CLI loads `auth.ts` directly. See
 [`docs/environment.md`](../../docs/environment.md).
 
-Create an OAuth client in the Google Cloud console and add
-`<API_URL>/api/auth/callback/google` — `http://localhost:3001/api/auth/callback/google`
-in development — as an authorised redirect URI.
+Create a single-tenant Microsoft Entra application and add
+`<APP_URL>/api/auth/callback/microsoft` as a redirect URI. Set
+`MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and `MICROSOFT_TENANT_ID`
+together. Google uses `<APP_URL>/api/auth/callback/google` during the mailbox
+migration window.
 
 `ALLOWED_SIGN_IN` decides who may sign in, and an empty value admits nobody. It
 is the whole authorisation model: there are no roles and no organizations, so

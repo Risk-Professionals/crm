@@ -168,6 +168,7 @@ describe("proxy", () => {
 
 		expect(redirectedTo(await proxy(request("/")))).toBe("/sign-in");
 		expect(redirectedTo(await proxy(request("/sign-in")))).toBeNull();
+		expect(redirectedTo(await proxy(request("/health")))).toBeNull();
 	});
 
 	it("never aims a redirect at the sign-in page itself", async () => {

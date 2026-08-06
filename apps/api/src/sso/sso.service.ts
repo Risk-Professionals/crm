@@ -2,7 +2,9 @@ import {
 	auth,
 	canConfigureSso,
 	isGoogleConfigured,
+	isMicrosoftConfigured,
 	isWorkspaceRole,
+	MICROSOFT_PROVIDER_ID,
 	ssoCallbackBase,
 	ssoCallbackURL,
 	ssoProviderName,
@@ -33,8 +35,14 @@ export interface PublicSsoProvider {
 }
 
 export interface SignInOptions {
+	microsoft: boolean;
 	google: boolean;
 	providers: PublicSsoProvider[];
+}
+
+export interface MicrosoftConnection {
+	configured: boolean;
+	linked: boolean;
 }
 
 export interface SsoProvider {
@@ -142,12 +150,26 @@ export class SsoService {
 		});
 
 		return {
+			microsoft: isMicrosoftConfigured(),
 			google: isGoogleConfigured(),
 			providers: rows.map((row) => ({
 				providerId: row.providerId,
 				name: ssoProviderName(row.providerId),
 			})),
 		};
+	}
+
+	async microsoftConnection(userId: string): Promise<MicrosoftConnection> {
+		if (!isMicrosoftConfigured()) {
+			return { configured: false, linked: false };
+		}
+
+		const account = await this.db.account.findFirst({
+			where: { userId, providerId: MICROSOFT_PROVIDER_ID },
+			select: { id: true },
+		});
+
+		return { configured: true, linked: account !== null };
 	}
 
 	async settings(userId: string): Promise<SsoSettings> {

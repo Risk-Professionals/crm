@@ -33,6 +33,12 @@ export class SsoRouter {
 
 	@Query()
 	@UseMiddlewares(AuthMiddleware)
+	async microsoftConnection(@Ctx() ctx: AuthedTrpcContext) {
+		return this.sso.microsoftConnection(ctx.user.id);
+	}
+
+	@Query()
+	@UseMiddlewares(AuthMiddleware)
 	async settings(@Ctx() ctx: AuthedTrpcContext) {
 		return this.sso.settings(ctx.user.id);
 	}

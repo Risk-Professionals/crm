@@ -1,9 +1,15 @@
-import { defaultBackend, defineSandbox } from "eve/sandbox";
+import { defineSandbox, type SandboxDefinition } from "eve/sandbox";
+import {
+	type VercelSandboxBootstrapUseOptions,
+	type VercelSandboxSessionUseOptions,
+	vercel,
+} from "eve/sandbox/vercel";
 
-export default defineSandbox({
-	backend: defaultBackend({
-		vercel: { networkPolicy: "deny-all" },
-		docker: { networkPolicy: "deny-all" },
-		microsandbox: { networkPolicy: "deny-all" },
-	}),
+const sandbox: SandboxDefinition<
+	VercelSandboxBootstrapUseOptions,
+	VercelSandboxSessionUseOptions
+> = defineSandbox({
+	backend: vercel({ networkPolicy: "deny-all" }),
 });
+
+export default sandbox;

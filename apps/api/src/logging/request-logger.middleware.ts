@@ -5,7 +5,7 @@ import { type RequestContext, runInRequestContext } from "./request-context";
 
 const REQUEST_ID_HEADER = "x-request-id";
 
-const QUIET_PATHS = new Set(["/health"]);
+const QUIET_PATHS = new Set(["/health", "/health/live", "/health/ready"]);
 
 @Injectable()
 export class RequestLoggerMiddleware implements NestMiddleware {

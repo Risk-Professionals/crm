@@ -189,6 +189,8 @@ const appRouter = t.router({
   sso: t.router({
     signInOptions: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<SsoRouter["signInOptions"]>>),
+    microsoftConnection: publicProcedure
+      .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<SsoRouter["microsoftConnection"]>>),
     settings: publicProcedure
       .query(async () => "PLACEHOLDER_DO_NOT_REMOVE" as unknown as Awaited<ReturnType<SsoRouter["settings"]>>),
     list: publicProcedure

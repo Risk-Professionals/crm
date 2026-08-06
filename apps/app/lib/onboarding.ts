@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { API_URL } from "@/lib/env";
+import { API_INTERNAL_URL } from "@/lib/env";
 
 export const ONBOARDING_PATH = "/onboarding";
 
@@ -18,7 +18,7 @@ async function read<T>(
 	if (!cookie) return null;
 
 	try {
-		const response = await fetch(`${API_URL}/api/trpc/${procedure}`, {
+		const response = await fetch(`${API_INTERNAL_URL}/api/trpc/${procedure}`, {
 			headers: { cookie },
 			cache: "no-store",
 			signal: AbortSignal.timeout(GATE_TIMEOUT_MS),

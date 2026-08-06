@@ -1,21 +1,21 @@
+import { fileURLToPath } from "node:url";
 import { loadRootEnv } from "@crm/env";
 import type { NextConfig } from "next";
 
 loadRootEnv();
 
-const apiUrl =
-	process.env.API_URL ??
-	process.env.NEXT_PUBLIC_API_URL ??
-	"http://localhost:3001";
-
 const nextConfig: NextConfig = {
-	env: {
-		NEXT_PUBLIC_API_URL: apiUrl,
-	},
+	output: "standalone",
+	outputFileTracingRoot: fileURLToPath(new URL("../..", import.meta.url)),
 
 	transpilePackages: ["@crm/auth", "@crm/db", "@crm/ui"],
 
-	serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
+	serverExternalPackages: [
+		"@crm/env",
+		"@prisma/client",
+		"@prisma/adapter-pg",
+		"pg",
+	],
 
 	images: {
 		remotePatterns: [

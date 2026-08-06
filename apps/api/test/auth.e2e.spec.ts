@@ -14,10 +14,13 @@ fallback(
 	"postgresql://postgres:postgres@localhost:5432/crm?schema=public",
 );
 fallback("BETTER_AUTH_SECRET", "test-secret-at-least-32-characters-long");
-fallback("API_URL", "http://localhost:3001");
+fallback("APP_URL", "http://localhost:3000");
 fallback("ALLOWED_SIGN_IN", "example.com");
 fallback("GOOGLE_CLIENT_ID", "test-google-client-id");
 fallback("GOOGLE_CLIENT_SECRET", "test-google-client-secret");
+fallback("MICROSOFT_CLIENT_ID", "test-microsoft-client-id");
+fallback("MICROSOFT_CLIENT_SECRET", "test-microsoft-client-secret");
+fallback("MICROSOFT_TENANT_ID", "11111111-2222-3333-4444-555555555555");
 
 describe("Auth (e2e)", () => {
 	let app: INestApplication;
@@ -60,14 +63,20 @@ describe("Auth (e2e)", () => {
 			.get("/api/trpc/sso.signInOptions")
 			.expect(200);
 
-		expect(response.body.result.data).toEqual({ google: true, providers: [] });
+		expect(response.body.result.data).toEqual({
+			microsoft: true,
+			google: true,
+			providers: [],
+		});
 	});
 
-	it("keeps the SSO configuration itself behind the session", async () => {
-		const response = await request(app.getHttpServer()).get(
-			"/api/trpc/sso.settings",
-		);
+	it("keeps identity connections and SSO configuration behind the session", async () => {
+		for (const procedure of ["sso.microsoftConnection", "sso.settings"]) {
+			const response = await request(app.getHttpServer()).get(
+				`/api/trpc/${procedure}`,
+			);
 
-		expect(response.status).toBe(401);
+			expect(response.status).toBe(401);
+		}
 	});
 });

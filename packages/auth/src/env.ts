@@ -1,6 +1,5 @@
 import "@crm/env/load";
 
-const DEFAULT_API_URL = "http://localhost:3001";
 const DEFAULT_APP_URL = "http://localhost:3000";
 
 const optional = (key: string): string | undefined => {
@@ -26,10 +25,38 @@ const googleCredentials = ():
 	return { clientId, clientSecret };
 };
 
-const apiUrl =
-	optional("API_URL") ?? optional("BETTER_AUTH_URL") ?? DEFAULT_API_URL;
+const microsoftCredentials = ():
+	| { clientId: string; clientSecret: string; tenantId: string }
+	| undefined => {
+	const clientId = optional("MICROSOFT_CLIENT_ID");
+	const clientSecret = optional("MICROSOFT_CLIENT_SECRET");
+	const tenantId = optional("MICROSOFT_TENANT_ID");
 
-const appUrls = (optional("APP_URL") ?? DEFAULT_APP_URL)
+	if (!clientId || !clientSecret || !tenantId) {
+		if (clientId || clientSecret || tenantId) {
+			throw new Error(
+				"MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, and MICROSOFT_TENANT_ID must be set together.",
+			);
+		}
+		return undefined;
+	}
+
+	if (
+		!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+			tenantId,
+		)
+	) {
+		throw new Error("MICROSOFT_TENANT_ID must be a tenant GUID.");
+	}
+
+	return { clientId, clientSecret, tenantId };
+};
+
+const appUrls = (
+	optional("APP_URL") ??
+	optional("BETTER_AUTH_URL") ??
+	DEFAULT_APP_URL
+)
 	.split(",")
 	.map((origin) => origin.trim())
 	.filter(Boolean);
@@ -37,10 +64,11 @@ const appUrls = (optional("APP_URL") ?? DEFAULT_APP_URL)
 const appUrl = appUrls[0] ?? DEFAULT_APP_URL;
 
 export const env = {
-	appUrl: apiUrl,
+	appUrl,
 	google: googleCredentials(),
+	microsoft: microsoftCredentials(),
 	cookieDomain: optional("AUTH_COOKIE_DOMAIN"),
-	trustedOrigins: [...new Set([...appUrls, apiUrl])],
+	trustedOrigins: [...new Set(appUrls)],
 	isProduction: process.env.NODE_ENV === "production",
 } as const;
 
@@ -48,4 +76,8 @@ export function isGoogleConfigured(): boolean {
 	return env.google !== undefined;
 }
 
-export { apiUrl, appUrl };
+export function isMicrosoftConfigured(): boolean {
+	return env.microsoft !== undefined;
+}
+
+export { appUrl };

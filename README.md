@@ -242,34 +242,34 @@ bun run dev
 The app is on [localhost:3000](http://localhost:3000), the API on
 [localhost:3001](http://localhost:3001).
 
-### The four values
+### The core values
 
 Open `.env` and set these. Everything else in the file is optional and commented out.
 
-| Variable                                   | What to put in it                                                    |
-| ------------------------------------------ | -------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`                       | `openssl rand -base64 32`                                             |
-| `ALLOWED_SIGN_IN`                          | Your email domain, e.g. `acme.com`. Or one address, e.g. `you@gmail.com`. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`| A Google OAuth client — 2 minutes, below. Both or neither.             |
+| Variable | What to put in it |
+| --- | --- |
+| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
+| `ALLOWED_SIGN_IN` | Your email domain, e.g. `acme.com`. Or one address, e.g. `you@example.com`. |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_TENANT_ID` | A single-tenant Microsoft Entra application. Set all three or none. |
 
 `DATABASE_URL` already matches the `docker compose` Postgres, so leave it alone unless
 you brought your own.
 
 <details>
-<summary><strong>Getting the Google OAuth client</strong></summary>
+<summary><strong>Getting the Microsoft Entra application</strong></summary>
 
-1. [Google Cloud console](https://console.cloud.google.com/apis/credentials) → **Credentials** → **Create credentials** → **OAuth client ID** → **Web application**.
-2. Under **Authorised redirect URIs**, add `http://localhost:3001/api/auth/callback/google`.
-3. Enable the [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and the [Calendar API](https://console.cloud.google.com/apis/library/calendar-json.googleapis.com) for the project.
-4. Copy the client ID and secret into `.env`.
+1. In Microsoft Entra admin center, create a single-tenant app registration.
+2. Add `http://localhost:3000/api/auth/callback/microsoft` as a web redirect URI.
+3. Add the optional email claim and delegated `User.Read`, `Mail.Read`, and `Calendars.Read` permissions.
+4. Create a client secret and copy the client ID, secret, and tenant ID into `.env`.
 
-Google is the sign-in method a clone starts with, and the same client reads Gmail and
-Calendar — so almost every install wants it. It is nonetheless the one of the four that
-the API will still boot without: an install that signs in through its own identity
-provider, added on **Settings → SSO**, leaves both empty and gets no Google button and
-no mail sync. Set them together or not at all; half a pair is a button that fails at
-Google. If your account is on a Google Workspace domain, set the consent screen to
-**Internal** and nobody outside your org can even reach the prompt.
+Microsoft is the primary built-in sign-in method. A deployment that uses a row-backed
+provider from **Settings → SSO** can leave the Microsoft tuple empty. Partial Microsoft
+configuration fails at startup instead of presenting a button that cannot complete.
+
+Google credentials remain optional during the mailbox migration. Set
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` together to retain Google sign-in and
+Gmail/Calendar sync until Microsoft Graph replaces them.
 
 </details>
 
@@ -289,13 +289,13 @@ ALLOWED_SIGN_IN="you@gmail.com"                  # a one-person install
 environment variables always win, so on a hosting platform you configure it there and
 the file is purely a local convenience.
 
-Beyond the four values above, everything is optional and the app runs without any
+Beyond the core values above, everything is optional and the app runs without any
 of it. [`.env.example`](./.env.example) is the full list with a note on each; the
 short version:
 
 | | |
 | --- | --- |
-| `API_URL` / `APP_URL` | Where the two halves are served. Only needed off localhost. |
+| `API_INTERNAL_URL` / `APP_URL` | The private API service address and public application origin. Only needed off localhost. |
 | `PERPLEXITY_API_KEY` | Lets the agent search the open web, with citations. |
 | `RAPIDAPI_KEY` | Lets the agent read LinkedIn profiles for identity. |
 | `AGENT_BRIDGE_SECRET` | Lets a rep talk to the agent from a contact's **Agent** tab. |
@@ -319,22 +319,23 @@ short version:
 
 Scope any of them with a Turborepo filter: `bun run dev --filter=api`.
 
-Because Google is the only door, there is no way to get a session from a terminal —
+Because authentication is social/SSO-only, there is no password flow for a terminal.
 `dev:session` writes the rows Better Auth would have written and prints the cookie it
 would have set. It refuses to run with `NODE_ENV=production`.
 
 ## Deploying
 
 Three deployments and a Postgres: the Next.js app, the NestJS API, and the agent.
-They are independent, and the only thing they must agree on is `DATABASE_URL` and
-`BETTER_AUTH_SECRET` — the API mints the session cookie and the app verifies it, so a
-mismatch is a redirect loop rather than an error.
+They are independent, and web/API must agree on `DATABASE_URL`,
+`BETTER_AUTH_SECRET`, and canonical `APP_URL` — the API mints the session cookie and
+the app verifies it, so a mismatch is a redirect loop rather than an error.
 
-Set `API_URL` and `APP_URL` to the real origins, and if the two are on different
-subdomains of one parent, set `AUTH_COOKIE_DOMAIN` to the parent so one cookie covers
-both. Add `http://your-api-host/api/auth/callback/google` to the OAuth client's
-redirect URIs. Set `CRON_SECRET` and point a scheduler at
-`POST /internal/sync/google` to keep the mailbox sync running.
+Set `API_INTERNAL_URL` to the private NestJS service origin and `APP_URL` to the
+public web origin. Add `<APP_URL>/api/auth/callback/microsoft` to the Entra app and,
+while Google remains enabled, `<APP_URL>/api/auth/callback/google` to the Google
+client. Browser auth and tRPC traffic stay same-origin through the web proxy. Set
+`CRON_SECRET` and point a scheduler at `POST /internal/sync/google` until the Graph
+scheduler migration is complete.
 
 `apps/api/src/generated/server.ts` is committed and `build` must never regenerate it —
 the generator needs a newer GLIBC than most build images have. Regenerate locally and

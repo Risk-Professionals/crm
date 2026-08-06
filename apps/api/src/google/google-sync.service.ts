@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { CalendarSyncService } from "./calendar-sync.service";
 import { GmailSyncService } from "./gmail-sync.service";
-import type { SyncSource } from "./google.constants";
+import { isSyncSource } from "./google.constants";
 import { GoogleConnectionService } from "./google-connection.service";
 import { SyncStateService } from "./sync-state.service";
 
@@ -52,7 +52,16 @@ export class GoogleSyncService {
 			summary.attempted += 1;
 
 			try {
-				const outcome = await this.runOne(row.userId, row.source as SyncSource);
+				if (!isSyncSource(row.source)) {
+					await this.state.markFailed(
+						row.id,
+						`Unsupported Google sync source: ${row.source}`,
+					);
+					summary.failed += 1;
+					continue;
+				}
+
+				const outcome = await this.runOne(row.userId, row.source);
 
 				if (outcome === null || outcome.status === "skipped") {
 					summary.skipped += 1;
@@ -95,13 +104,20 @@ export class GoogleSyncService {
 		return summary;
 	}
 
-	async runOne(userId: string, source: SyncSource) {
+	async runOne(userId: string, source: string) {
+		if (!isSyncSource(source)) {
+			throw new Error(`Unsupported Google sync source: ${source}`);
+		}
+
 		const row = await this.state.get(userId, source);
 		if (!row) return null;
 
-		return source === "calendar"
-			? this.calendar.sync(row)
-			: this.gmail.sync(row);
+		switch (source) {
+			case "calendar":
+				return this.calendar.sync(row);
+			case "gmail":
+				return this.gmail.sync(row);
+		}
 	}
 
 	async runForUser(userId: string): Promise<void> {

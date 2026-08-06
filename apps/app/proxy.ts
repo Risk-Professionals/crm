@@ -14,6 +14,8 @@ const LANDING_PATH = "/";
 
 const SIGN_IN_PATH = "/sign-in";
 
+const HEALTH_PATH = "/health";
+
 const UNGATED = ["/grant-access", "/eve"];
 
 const SECTIONS = ["/companies", "/contacts", "/deals", "/settings"];
@@ -21,7 +23,9 @@ const SECTIONS = ["/companies", "/contacts", "/deals", "/settings"];
 export async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
-	if (pathname === SIGN_IN_PATH) return NextResponse.next();
+	if (pathname === SIGN_IN_PATH || pathname === HEALTH_PATH) {
+		return NextResponse.next();
+	}
 
 	if (
 		getSessionCookie(request, { cookiePrefix: AUTH_COOKIE_PREFIX }) === null
