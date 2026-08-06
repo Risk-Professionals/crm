@@ -26,7 +26,6 @@ export function MeetingEntry({
 	startsAt,
 	endsAt,
 	isAllDay,
-	attendeeCount,
 	conferenceUrl,
 }: {
 	eventId: string;
@@ -38,10 +37,7 @@ export function MeetingEntry({
 }) {
 	const trpc = useTRPC();
 
-	const event = useQuery({
-		...trpc.google.event.queryOptions({ eventId }),
-		enabled: attendeeCount > 0,
-	});
+	const event = useQuery(trpc.sync.event.queryOptions({ eventId }));
 
 	return (
 		<div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -51,6 +47,17 @@ export function MeetingEntry({
 
 			{event.data?.attendees && event.data.attendees.length > 0 ? (
 				<AttendeeList attendees={event.data.attendees} />
+			) : null}
+
+			{event.data?.providerUrl ? (
+				<a
+					href={event.data.providerUrl}
+					target="_blank"
+					rel="noreferrer"
+					className="text-muted-foreground text-xs underline underline-offset-3 hover:text-foreground"
+				>
+					{event.data.providerLabel}
+				</a>
 			) : null}
 
 			{conferenceUrl ? (

@@ -2,7 +2,50 @@
 
 ## Status
 
-Proposed phased migration plan for review. This document describes the migration sequence and acceptance gates; it does not authorize a production cutover by itself.
+Execution in progress. The source and external-service foundations below have been implemented and validated, but both CRM deployment kill switches remain disabled. This document still does not authorize a production cutover by itself; the open acceptance gates remain mandatory.
+
+## Execution progress — 2026-08-06
+
+### Completed and validated
+
+- [x] Raise the runtime requirement to Node 24 and retain the repository Bun 1.3.12 pin.
+- [x] Add Debian/glibc, non-root web, API, and agent container images.
+- [x] Enable Next.js standalone output and split `APP_URL` from server-only `API_INTERNAL_URL`.
+- [x] Add web liveness plus API liveness/readiness probes and container smoke tests.
+- [x] Create the separate single-tenant `Risk Professionals CRM` Entra registration, redirect URIs, optional email claim, delegated Graph permissions, admin consent, assignment boundary, and protected GitHub configuration.
+- [x] Add native Better Auth Microsoft sign-in with tenant enforcement, stable `${tid}:${oid}` provider identity, disabled profile-photo loading, explicit account linking, and no implicit/different-email linking.
+- [x] Add Microsoft sign-in and authenticated account-linking UI while retaining Google as the temporary recovery/mailbox path.
+- [x] Create and verify the Vercel Blob store in `syd1`, including write/read/delete acceptance.
+- [x] Create and verify the Vercel AI Gateway key and a real `zai/glm-5.2-fast` completion.
+- [x] Select Vercel Sandbox explicitly and prove Node 24 sandbox creation with `deny-all` egress.
+- [x] Bring Stage 2 forward: pin `@workflow/world-postgres@5.0.0-beta.30`, select it explicitly in eve, add an idempotent bootstrap command, and complete a real model turn with durable runs/events/steps in PostgreSQL.
+- [x] Add the agent image and prove it starts with PostgreSQL Workflow, Vercel Sandbox, and AI Gateway without embedding runtime secrets.
+- [x] Add rollback-compatible provider-neutral sync schema expansion and backfill migrations without removing Google fields, enums, keys, or indexes.
+- [x] Make Google dispatch provider-aware and dual-read/write provider-neutral state so future Microsoft rows cannot be interpreted as Gmail.
+- [x] Prove the previous Google revision boots against the expanded schema before Microsoft sync rows exist.
+- [x] Add atomic mailbox leases with `FOR UPDATE SKIP LOCKED` and prove concurrent claim exclusion plus expiry recovery.
+- [x] Add Microsoft token refresh/consent classification, Graph host enforcement, throttling/reset/error handling, immutable-ID mail delta clients, and fixed-window calendar delta clients.
+- [x] Implement crash-safe Microsoft mail and calendar delta persistence, reconciliation generations, tombstones, folder moves, fixed-window rebasing, bounded leased orchestration, provider-neutral timeline links, Graph connection controls, and the mandatory Microsoft-primary consent gate.
+- [x] Add the portable PostgreSQL 17 ACA wrapper with fail-closed server startup, explicit one-time CRM/Workflow initialization, and atomic compressed logical backups.
+- [x] Run the complete repository validation suite: typecheck, lint, migrations, builds, rollback compatibility, and 512 passing tests.
+
+### In progress and still required before staging
+
+- [x] Implement crash-safe Microsoft mail delta baseline/incremental page application, tombstones, folder moves, and `410` reconciliation.
+- [x] Implement Microsoft calendar delta persistence, recurrence/occurrence identity, tombstones, fixed-window horizon advancement, and `410` reconciliation.
+- [x] Add provider-neutral sync orchestration, Microsoft connection procedures, ACA Job endpoint, and bounded scheduled/manual execution.
+- [x] Replace Google grant/connection/timeline surfaces with Microsoft Graph consent, reconnect, status, sync, purge, and provider-neutral links.
+- [ ] Complete real-tenant Entra callback, account-linking, refresh-token rotation, revoked-consent, throttling, paging, and crash-replay acceptance.
+- [ ] Merge this source revision, pull the reviewed squashed subtree into `Risk-Professionals/directory`, and retain both directory/source provenance markers.
+- [ ] Add and review the separate CRM VNet, ACA environments, Key Vault, identities, PostgreSQL NFS storage, migration/Workflow bootstrap/backup Jobs, DNS, certificates, deployment workflows, smoke tests, and rollback operations.
+
+### Production gates remain open
+
+- [ ] No CRM application or database has been deployed to Azure.
+- [ ] No production database cutover or production write acceptance has occurred.
+- [ ] PostgreSQL replacement, backup/restore, parked-workflow recovery, and scheduled-work recovery drills have not run on ACA.
+- [ ] Microsoft Graph has not replaced Gmail/Google Calendar yet, so Google credentials must not be retired.
+- [ ] `CRM_STAGING_READY` and `CRM_PRODUCTION_READY` remain `false`.
 
 ## Objective
 
@@ -22,6 +65,8 @@ The migration is deliberately split into independently gated stages with explici
 4. Replace Vercel Blob with Azure Blob Storage.
 5. Replace Vercel AI Gateway with OpenRouter.
 6. Remove the remaining Vercel configuration and harden operations.
+
+The Stage 0 Vercel Workflow spike selected the documented fallback that brings Stage 2 forward. The implemented Stage 1 agent therefore uses PostgreSQL Workflow from its first Azure deployment; Vercel Workflow is no longer part of the transitional runtime.
 
 Each stage must leave a working deployment. Stage 1 deliberately establishes the Azure compute and database foundation; after that foundation, workflow, sandbox, image storage, and inference boundaries must be changed in separate releases.
 

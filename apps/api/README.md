@@ -36,7 +36,9 @@ used for type checking only (`bun run check-types`).
 | `/api/auth/*`    | anonymous  | Mounted by `@thallesp/nestjs-better-auth`     |
 | `/auth/me`       | required   | Cached profile of the signed-in user          |
 | `/auth/session`  | optional   | Whether the caller is signed in               |
-| `/health`        | anonymous  | 200 with a database round-trip, 503 otherwise |
+| `/health/live`   | anonymous  | Shallow process liveness |
+| `/health/ready`  | anonymous  | 200 with a database round-trip, 503 otherwise |
+| `/health`        | anonymous  | Compatibility alias for database readiness |
 | `/internal/sync/google` | `CRON_SECRET` bearer | Vercel Cron entrypoint for Gmail/Calendar sync. Fails closed when the secret is unset. |
 
 ## How auth is wired
@@ -56,9 +58,9 @@ straight from Postgres via `@crm/auth` and calls the routes above with
 ```
 
 It also calls `enableCors({ origin: trustedOrigins, credentials: true })` for
-the whole app, which is what lets the browser at `localhost:3000` talk to it —
-`APP_URL` is the single knob for that, comma-separated if the app is served from
-more than one origin.
+the whole app. Browser traffic normally stays same-origin through the Next.js
+proxy; `APP_URL` still defines the canonical Better Auth origin and any trusted
+additional origins, comma-separated.
 
 `main.ts` creates the app with `bodyParser: false` — Better Auth needs the raw
 request body, and the library installs its own parsers around the auth routes.

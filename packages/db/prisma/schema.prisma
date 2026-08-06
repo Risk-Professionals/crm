@@ -1,4 +1,3 @@
-
 datasource db {
   provider = "postgresql"
 }
@@ -467,6 +466,23 @@ enum GoogleSyncStatus {
   FAILED
 }
 
+enum SyncProvider {
+  GOOGLE
+  MICROSOFT
+}
+
+enum SyncResource {
+  MAIL
+  CALENDAR
+}
+
+enum MailboxSyncStatus {
+  IDLE
+  RUNNING
+  NEEDS_RECONNECT
+  FAILED
+}
+
 enum EmailDirection {
   INBOUND
   OUTBOUND
@@ -485,18 +501,39 @@ model MailboxSync {
   retryAfter   DateTime?
   autoCreate   Boolean          @default(false)
 
+  provider           SyncProvider?
+  resource           SyncResource?
+  scopeKey           String?
+  syncStatus         MailboxSyncStatus?
+  providerCursor     String?
+  providerPageCursor String?
+  folderId           String?
+  windowStart        DateTime?
+  windowEnd          DateTime?
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  retryCount             Int                @default(0)
+  reconciliationStartedAt DateTime?
+  ingestAfter            DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, source])
+  @@unique([userId, provider, resource, scopeKey])
   @@index([status])
+  @@index([provider, resource, syncStatus, retryAfter])
+  @@index([leaseExpiresAt])
   @@map("mailboxSync")
 }
 
 model EmailThread {
-  id            String  @id @default(cuid())
-  rootMessageId String  @unique
-  subject       String?
+  id               String        @id @default(cuid())
+  rootMessageId    String        @unique
+  subject          String?
+  provider         SyncProvider?
+  providerThreadId String?
+  providerUserId   String?
 
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
@@ -513,6 +550,7 @@ model EmailThread {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([providerUserId, provider, providerThreadId])
   @@index([companyId, lastMessageAt])
   @@index([contactId, lastMessageAt])
   @@map("emailThread")
@@ -523,9 +561,14 @@ model EmailMessage {
   threadId String
   thread   EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
-  rfcMessageId   String  @unique
-  syncedByUserId String?
-  gmailMessageId String?
+  rfcMessageId      String        @unique
+  syncedByUserId    String?
+  gmailMessageId    String?
+  provider          SyncProvider?
+  providerMessageId String?
+  providerWebUrl    String?
+  providerFolderId  String?
+  providerSeenAt    DateTime?
 
   direction  EmailDirection
   fromEmail  String
@@ -538,7 +581,9 @@ model EmailMessage {
 
   createdAt DateTime @default(now())
 
+  @@unique([syncedByUserId, provider, providerMessageId])
   @@index([threadId, sentAt])
+  @@index([syncedByUserId, provider, providerFolderId])
   @@map("emailMessage")
 }
 
@@ -563,8 +608,12 @@ model CalendarEvent {
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
-  syncedByUserId String?
-  googleEventId  String?
+  syncedByUserId  String?
+  googleEventId   String?
+  provider        SyncProvider?
+  providerEventId String?
+  providerWebUrl  String?
+  providerSeenAt  DateTime?
 
   attendees CalendarAttendee[]
   activity  Activity?
@@ -573,7 +622,9 @@ model CalendarEvent {
   updatedAt DateTime @updatedAt
 
   @@unique([iCalUid, originalStartTime])
+  @@unique([syncedByUserId, provider, providerEventId])
   @@index([companyId, startsAt])
+  @@index([syncedByUserId, provider, providerSeenAt])
   @@index([contactId, startsAt])
   @@map("calendarEvent")
 }

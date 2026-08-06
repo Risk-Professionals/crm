@@ -40,8 +40,7 @@ they follow `NODE_ENV`: JSON at `log` and above in production, colourised with
 
 ## Intelligence never lives in the API
 
-This is an **agentic-first platform**. The API serves HTTP, auth, tRPC and the
-Google sync. It does not research, enrich, score, summarise, match identities or
+This is an **agentic-first platform**. The API serves HTTP, auth, tRPC and provider mailbox/calendar sync. It does not research, enrich, score, summarise, match identities or
 decide anything about a person or a company — not as a fallback, not "just the
 cheap bit", not behind a flag. That work belongs to the eve agent in
 `apps/agent`, which owns the vendor clients, the confidence model and the
@@ -67,7 +66,7 @@ If you are about to add a vendor client to `apps/api`, you want
 
 ## There is exactly one organization, and it is not a tenancy boundary
 
-This is an internal tool behind Google sign-in, and it is **single tenant**.
+This is an internal tool behind Microsoft Entra or configured SSO sign-in, and it is **single tenant**.
 There is no `x-organization-slug` header, no org context interceptor, no
 org-scoped cache keys, and **no `organizationId` on any CRM record**. A company,
 a contact, a deal and an activity are scoped by nothing, because there is
@@ -144,7 +143,7 @@ called, who works here, and what do we sell — and for nothing else.
   - **`getSessionCookie()` decides signed-in, not a session lookup.** That is
     Better Auth's documented optimistic check for proxy, and it is all a
     redirect needs; every page behind it still resolves the real session
-    server-side through `requireGoogleAccess()`.
+    server-side through `requireProviderAccess()`.
   - **Nothing is cached in a cookie, and that is the second thing this got
     wrong.** The answers were kept in httpOnly `crm.onboarded` and
     `crm.research` markers with a year's life, on the reasoning that they
@@ -164,7 +163,7 @@ called, who works here, and what do we sell — and for nothing else.
     are the only two writers, and `cache-manager` is already the documented
     pattern for exactly that shape. Do not put it back in the browser.
   - **`/sign-in`, `/grant-access` and `/eve` are ungated.**
-    `requireGoogleAccess()` redirects to `/grant-access`, so gating it would
+    `requireProviderAccess()` redirects to `/grant-access`, so gating it would
     ping-pong against the onboarding redirect for anyone who signed in without
     both scopes.
   - **`/sign-in` is the only path a stranger may read**, and that list is a
@@ -295,9 +294,9 @@ called, who works here, and what do we sell — and for nothing else.
 
 ## SSO is a row, not a deployment
 
-Google is the sign-in method a clone starts with. An install that has its own
-identity provider adds one on **Settings → SSO**, and the whole of that
-configuration is an `ssoProvider` row written by Better Auth's
+Microsoft Entra ID is the built-in deployment sign-in method. An install that
+has another identity provider adds one on **Settings → SSO**, and the whole of
+that configuration is an `ssoProvider` row written by Better Auth's
 [`sso` plugin](https://www.better-auth.com/docs/plugins/sso) — not an
 environment variable, because a self-hoster's admin cannot redeploy.
 
@@ -320,27 +319,27 @@ environment variable, because a self-hoster's admin cannot redeploy.
   because that one *is* authentication.
 - **`sso.signInOptions` is the one public procedure in the app.** The sign-in
   page is unauthenticated and has to know what it may offer, so it returns each
-  provider's id and the name to print on the button, plus whether a Google
-  client is configured at all — nothing else. `sso.list` carries the issuer, the
+  provider's id and the name to print on the button, plus whether Microsoft and
+  transitional Google clients are configured — nothing else. `sso.list` carries the issuer, the
   domains and the last four of the client id, and it — like `sso.settings`,
   `sso.register` and `sso.remove` — takes `AuthMiddleware` at the method rather
   than the router, which is what leaves `sso.signInOptions` open. A client
   secret is never read back out of any of them.
 - **It is the API's answer, not the app's.** Both processes read one `.env`, but
-  `/api/auth/*` is served by the API, so whether Google sign-in works is a fact
-  about *its* environment. The app asking itself would be right until the day
-  the two are deployed with different configuration, and then it would offer a
-  button that 500s.
-- **An install with neither says so.** No Google client and no provider is not
-  an empty sign-in page: it is the one state where the reader is the person who
-  can fix it, so `/sign-in` names the two variables to set. A read that *fails*
-  is different and must not print that — an unreachable API is not a missing
-  configuration, so the page falls back to offering Google.
-- **A configured provider replaces the Google button, it does not disable
-  Google.** `/sign-in?method=google` still offers it. Hiding is the point —
-  locking an admin out of their own CRM because they typed an issuer URL wrong
-  is not. It only offers it when there *is* a Google client, so the escape hatch
-  is never a button that cannot work.
+  `/api/auth/*` is served by the API, so whether Microsoft or Google sign-in
+  works is a fact about *its* environment. The app asking itself would be right
+  until the day the two are deployed with different configuration, and then it
+  would offer a button that 500s.
+- **An install with neither says so.** No Microsoft client and no row-backed
+  provider is not an empty sign-in page: it is the one state where the reader
+  is the person who can fix it, so `/sign-in` names the three Microsoft
+  variables to set. Transitional Google remains available when configured.
+- **Microsoft is the first built-in button and configured providers remain
+  available.** Google stays visible while both clients are configured so an
+  existing user can sign in with Google and explicitly link Microsoft from
+  Settings → Connections. `/sign-in?method=google` remains the direct recovery
+  path. Google is offered only when its client exists, so the escape hatch is
+  never a button that cannot work.
 - **Signing in with an IdP does not cost you Gmail.** Google is two separate
   things here — a way to prove who you are, and a mailbox to read — and an
   install that replaced the first still wants the second. So Gmail and Calendar

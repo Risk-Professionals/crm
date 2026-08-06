@@ -1,6 +1,14 @@
 export { type Auth, auth, type Session, type SessionUser } from "./auth";
 export { AUTH_COOKIE_PREFIX } from "./cookies";
-export { isGoogleConfigured } from "./env";
+export { isGoogleConfigured, isMicrosoftConfigured } from "./env";
+export {
+	hasMicrosoftGraphScopes,
+	MICROSOFT_GRAPH_SCOPES,
+	MICROSOFT_PROVIDER_ID,
+	microsoftProfileToUser,
+	needsMicrosoftGraphGrant,
+	signsInWithMicrosoft,
+} from "./microsoft";
 export {
 	canChangeRole,
 	canRenameWorkspace,

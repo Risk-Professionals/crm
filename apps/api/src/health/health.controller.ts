@@ -16,9 +16,21 @@ export class HealthController {
 
 	constructor(@InjectDatabase() private readonly db: Db) {}
 
+	@Get("live")
+	@AllowAnonymous()
+	live() {
+		return { status: "ok" };
+	}
+
 	@Get()
 	@AllowAnonymous()
-	async check() {
+	check() {
+		return this.ready();
+	}
+
+	@Get("ready")
+	@AllowAnonymous()
+	async ready() {
 		const startedAt = process.hrtime.bigint();
 
 		try {

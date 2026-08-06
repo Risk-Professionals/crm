@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { isGoogleConfigured, WORKSPACE_ID } from "@crm/auth";
+import {
+	isGoogleConfigured,
+	isMicrosoftConfigured,
+	WORKSPACE_ID,
+} from "@crm/auth";
 import type { Db } from "@crm/db";
 import { ForbiddenException } from "@nestjs/common";
 import { SsoService } from "../src/sso/sso.service";
@@ -134,9 +138,11 @@ describe("the sign-in page's read", () => {
 		]);
 	});
 
-	it("says whether Google is configured, so the page can offer nothing", async () => {
+	it("reports the configured built-in sign-in providers", async () => {
 		const { sso } = service(null, [OKTA]);
+		const options = await sso.signInOptions();
 
-		expect((await sso.signInOptions()).google).toBe(isGoogleConfigured());
+		expect(options.microsoft).toBe(isMicrosoftConfigured());
+		expect(options.google).toBe(isGoogleConfigured());
 	});
 });

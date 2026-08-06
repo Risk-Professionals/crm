@@ -2,10 +2,38 @@ import {
 	type Db,
 	GoogleSyncStatus,
 	type MailboxSyncModel as MailboxSync,
+	MailboxSyncStatus,
+	type Prisma,
+	SyncProvider,
+	SyncResource,
 } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectDatabase } from "../database/database.constants";
-import type { SyncSource } from "./google.constants";
+import { SYNC_SOURCES, type SyncSource } from "./google.constants";
+
+const RESOURCE_FOR_SOURCE: Record<SyncSource, SyncResource> = {
+	calendar: SyncResource.CALENDAR,
+	gmail: SyncResource.MAIL,
+};
+
+const SCOPE_FOR_SOURCE: Record<SyncSource, string> = {
+	calendar: "legacy:calendar",
+	gmail: "legacy:gmail",
+};
+
+const STATUS_MAP: Record<GoogleSyncStatus, MailboxSyncStatus> = {
+	[GoogleSyncStatus.IDLE]: MailboxSyncStatus.IDLE,
+	[GoogleSyncStatus.RUNNING]: MailboxSyncStatus.RUNNING,
+	[GoogleSyncStatus.NEEDS_RECONNECT]: MailboxSyncStatus.NEEDS_RECONNECT,
+	[GoogleSyncStatus.FAILED]: MailboxSyncStatus.FAILED,
+};
+
+function googleRows(): Prisma.MailboxSyncWhereInput {
+	return {
+		source: { in: [...SYNC_SOURCES] },
+		OR: [{ provider: SyncProvider.GOOGLE }, { provider: null }],
+	};
+}
 
 @Injectable()
 export class SyncStateService {
@@ -14,20 +42,23 @@ export class SyncStateService {
 	constructor(@InjectDatabase() private readonly db: Db) {}
 
 	async get(userId: string, source: SyncSource): Promise<MailboxSync | null> {
-		return this.db.mailboxSync.findUnique({
-			where: { userId_source: { userId, source } },
+		return this.db.mailboxSync.findFirst({
+			where: { ...googleRows(), userId, source },
 		});
 	}
 
 	async listForUser(userId: string): Promise<MailboxSync[]> {
-		return this.db.mailboxSync.findMany({ where: { userId } });
+		return this.db.mailboxSync.findMany({
+			where: { userId, ...googleRows() },
+		});
 	}
 
 	async due(now: Date): Promise<MailboxSync[]> {
 		return this.db.mailboxSync.findMany({
 			where: {
+				...googleRows(),
 				status: { notIn: [GoogleSyncStatus.NEEDS_RECONNECT] },
-				OR: [{ retryAfter: null }, { retryAfter: { lte: now } }],
+				AND: [{ OR: [{ retryAfter: null }, { retryAfter: { lte: now } }] }],
 			},
 			orderBy: [{ lastSyncedAt: { sort: "asc", nulls: "first" } }],
 		});
@@ -44,10 +75,18 @@ export class SyncStateService {
 				userId,
 				source,
 				status: GoogleSyncStatus.IDLE,
+				provider: SyncProvider.GOOGLE,
+				resource: RESOURCE_FOR_SOURCE[source],
+				scopeKey: SCOPE_FOR_SOURCE[source],
+				syncStatus: MailboxSyncStatus.IDLE,
 				autoCreate: options.autoCreate,
 			},
 			update: {
 				status: GoogleSyncStatus.IDLE,
+				provider: SyncProvider.GOOGLE,
+				resource: RESOURCE_FOR_SOURCE[source],
+				scopeKey: SCOPE_FOR_SOURCE[source],
+				syncStatus: MailboxSyncStatus.IDLE,
 				lastError: null,
 				retryAfter: null,
 			},
@@ -57,7 +96,11 @@ export class SyncStateService {
 	async markRunning(id: string): Promise<void> {
 		await this.db.mailboxSync.update({
 			where: { id },
-			data: { status: GoogleSyncStatus.RUNNING, lastError: null },
+			data: {
+				status: GoogleSyncStatus.RUNNING,
+				syncStatus: MailboxSyncStatus.RUNNING,
+				lastError: null,
+			},
 		});
 	}
 
@@ -71,7 +114,11 @@ export class SyncStateService {
 		await this.db.mailboxSync.update({
 			where: { id },
 			data: {
-				...update,
+				status: update.status,
+				syncStatus: STATUS_MAP[update.status],
+				...(update.cursor !== undefined
+					? { cursor: update.cursor, providerCursor: update.cursor }
+					: {}),
 				lastSyncedAt: new Date(),
 				lastError: null,
 				retryAfter: null,
@@ -90,7 +137,10 @@ export class SyncStateService {
 			where: { id },
 			data: {
 				cursor: null,
+				providerCursor: null,
+				providerPageCursor: null,
 				status: GoogleSyncStatus.IDLE,
+				syncStatus: MailboxSyncStatus.IDLE,
 				lastError: null,
 			},
 		});
@@ -101,6 +151,7 @@ export class SyncStateService {
 			where: { id },
 			data: {
 				status: GoogleSyncStatus.NEEDS_RECONNECT,
+				syncStatus: MailboxSyncStatus.NEEDS_RECONNECT,
 				lastError: reason,
 				retryAfter: null,
 			},
@@ -112,6 +163,7 @@ export class SyncStateService {
 			where: { id },
 			data: {
 				status: GoogleSyncStatus.IDLE,
+				syncStatus: MailboxSyncStatus.IDLE,
 				retryAfter: new Date(Date.now() + retryAfterMs),
 			},
 		});
@@ -120,7 +172,11 @@ export class SyncStateService {
 	async markFailed(id: string, reason: string): Promise<void> {
 		await this.db.mailboxSync.update({
 			where: { id },
-			data: { status: GoogleSyncStatus.FAILED, lastError: reason },
+			data: {
+				status: GoogleSyncStatus.FAILED,
+				syncStatus: MailboxSyncStatus.FAILED,
+				lastError: reason,
+			},
 		});
 	}
 
@@ -130,14 +186,14 @@ export class SyncStateService {
 		enabled: boolean,
 	): Promise<void> {
 		await this.db.mailboxSync.updateMany({
-			where: { userId, source },
+			where: { ...googleRows(), userId, source },
 			data: { autoCreate: enabled },
 		});
 	}
 
 	async remove(userId: string, source?: SyncSource): Promise<void> {
 		await this.db.mailboxSync.deleteMany({
-			where: { userId, ...(source ? { source } : {}) },
+			where: { ...googleRows(), userId, ...(source ? { source } : {}) },
 		});
 	}
 }

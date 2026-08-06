@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/.output
+**/.eve
+**/.vercel
+coverage

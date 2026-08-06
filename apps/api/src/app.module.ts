@@ -18,9 +18,11 @@ import { GoogleModule } from "./google/google.module";
 import { HealthModule } from "./health/health.module";
 import { LoggingModule } from "./logging/logging.module";
 import { logAuthRoute } from "./logging/request-logger.middleware";
+import { MicrosoftModule } from "./microsoft/microsoft.module";
 import { SearchModule } from "./search/search.module";
 import { SettingsModule } from "./settings/settings.module";
 import { SsoModule } from "./sso/sso.module";
+import { SyncModule } from "./sync/sync.module";
 import { TrpcModule } from "./trpc/trpc.module";
 import { UsersModule } from "./users/users.module";
 import { WorkspaceModule } from "./workspace/workspace.module";
@@ -49,6 +51,8 @@ import { WorkspaceModule } from "./workspace/workspace.module";
 		DashboardModule,
 		SearchModule,
 		GoogleModule,
+		MicrosoftModule,
+		SyncModule,
 		SettingsModule,
 		WorkspaceModule,
 		SsoModule,

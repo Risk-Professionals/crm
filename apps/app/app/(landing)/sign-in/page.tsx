@@ -5,13 +5,18 @@ import { AuthHeading, AuthShell } from "@/components/auth-shell";
 import { getSession } from "@/lib/session";
 import { getServerQueryClient, getServerTrpc } from "@/lib/trpc/server";
 import { GoogleSignIn } from "./google-sign-in";
+import { MicrosoftSignIn } from "./microsoft-sign-in";
 import { type SsoProvider, SsoSignIn } from "./sso-sign-in";
 
 export const metadata: Metadata = {
 	title: "Sign in",
 };
 
-type SignInOptions = { google: boolean; providers: SsoProvider[] };
+type SignInOptions = {
+	microsoft: boolean;
+	google: boolean;
+	providers: SsoProvider[];
+};
 
 async function signInOptions(): Promise<SignInOptions | null> {
 	try {
@@ -59,14 +64,20 @@ async function SignIn({
 		redirect("/");
 	}
 
+	const microsoft = options?.microsoft ?? false;
 	const google = options?.google ?? true;
 	const providers = options?.providers ?? [];
 
+	const insistOnMicrosoft = method === "microsoft" && microsoft;
 	const insistOnGoogle = method === "google" && google;
-	const showSso = providers.length > 0 && !insistOnGoogle;
-	const showGoogle = google && (providers.length === 0 || insistOnGoogle);
+	const showMicrosoft = microsoft && !insistOnGoogle;
+	const showSso = providers.length > 0 && !insistOnMicrosoft && !insistOnGoogle;
+	const showGoogle =
+		google &&
+		(insistOnGoogle || microsoft || providers.length === 0) &&
+		!insistOnMicrosoft;
 
-	if (!showSso && !showGoogle) {
+	if (!showMicrosoft && !showSso && !showGoogle) {
 		return (
 			<>
 				<AuthHeading
@@ -75,9 +86,10 @@ async function SignIn({
 				/>
 
 				<p className="text-center text-muted-foreground text-sm/5">
-					Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the root .env file
-					and restart. Your own identity provider can be added from Settings
-					once somebody is signed in.
+					Set MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET, and
+					MICROSOFT_TENANT_ID in the root .env file and restart. Your own
+					identity provider can also be added from Settings once somebody is
+					signed in.
 				</p>
 			</>
 		);
@@ -90,6 +102,7 @@ async function SignIn({
 				description="Sign in with your account to continue."
 			/>
 
+			{showMicrosoft ? <MicrosoftSignIn /> : null}
 			{showSso ? <SsoSignIn providers={providers} /> : null}
 			{showGoogle ? <GoogleSignIn /> : null}
 		</>

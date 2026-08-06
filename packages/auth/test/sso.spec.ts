@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-process.env.API_URL = "https://crm.example.test";
+process.env.APP_URL = "https://crm.example.test";
 
 const { canConfigureSso, ssoCallbackBase, ssoCallbackURL, ssoProviderName } =
 	await import("../src/sso");

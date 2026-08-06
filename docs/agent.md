@@ -59,6 +59,28 @@ A second copy of that string is a second answer to the question.
   a long window — a company preamble hands over every contact on the account —
   and answers fast enough that the sheet's Agent tab reads as a conversation.
 
+## Workflow state lives in PostgreSQL
+
+The agent pins `@workflow/world-postgres@5.0.0-beta.30`, the release whose
+`@workflow/world` and `@workflow/world-local` dependencies match eve 0.29.4.
+`agent.ts` selects it explicitly; deployment environment detection never decides
+where durable runs live.
+
+Workflow state uses a separate `workflow` database and role on the same
+PostgreSQL server as CRM data. `WORKFLOW_POSTGRES_URL` must never reuse the CRM
+role. Run `bun run workflow:bootstrap` before starting an agent revision that
+needs the world. The bootstrap is idempotent and independent from Prisma.
+
+The initial production limits are one agent replica, worker concurrency `4`,
+and pool size `10`. `WORKFLOW_POSTGRES_APPLICATION_MANAGED_SHUTDOWN=1` lets eve
+stop intake and drain the embedded Graphile worker before the container exits.
+Delivery is at least once, so every authored write and external side effect must
+remain idempotent under concurrent original/retry execution.
+
+Both `/eve/*` and `/.well-known/workflow/*` must reach the agent without path
+rewriting. Health alone is not acceptance: the recovery test starts a session,
+parks it, replaces the agent, and resumes the same continuation from PostgreSQL.
+
 ## Pictures are copied, never linked
 
 A logo and a profile photograph both arrive as somebody else's URL, and neither

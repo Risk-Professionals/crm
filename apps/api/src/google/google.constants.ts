@@ -10,6 +10,10 @@ export {
 export const SYNC_SOURCES = ["calendar", "gmail"] as const;
 export type SyncSource = (typeof SYNC_SOURCES)[number];
 
+export function isSyncSource(value: string): value is SyncSource {
+	return SYNC_SOURCES.some((source) => source === value);
+}
+
 export const SCOPE_FOR_SOURCE: Record<SyncSource, string> = {
 	calendar: CALENDAR_SCOPE,
 	gmail: GMAIL_SCOPE,

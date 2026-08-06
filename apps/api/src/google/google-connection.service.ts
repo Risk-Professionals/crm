@@ -1,5 +1,5 @@
 import { isGoogleConfigured, signsInWithGoogle } from "@crm/auth";
-import { type Db, GoogleSyncStatus } from "@crm/db";
+import { type Db, GoogleSyncStatus, SyncProvider } from "@crm/db";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { normalizeDomain } from "../companies/domain";
 import { ActivityStampService } from "../crm/activity-stamp.service";
@@ -125,9 +125,27 @@ export class GoogleConnectionService {
 	async purgeSyncedData(userId: string): Promise<{ purged: number }> {
 		const [threads, events] = await this.db.$transaction([
 			this.db.emailThread.deleteMany({
-				where: { messages: { some: { syncedByUserId: userId } } },
+				where: {
+					messages: {
+						some: {
+							syncedByUserId: userId,
+							OR: [
+								{ provider: SyncProvider.GOOGLE },
+								{ provider: null, gmailMessageId: { not: null } },
+							],
+						},
+					},
+				},
 			}),
-			this.db.calendarEvent.deleteMany({ where: { syncedByUserId: userId } }),
+			this.db.calendarEvent.deleteMany({
+				where: {
+					syncedByUserId: userId,
+					OR: [
+						{ provider: SyncProvider.GOOGLE },
+						{ provider: null, googleEventId: { not: null } },
+					],
+				},
+			}),
 		]);
 
 		await this.stamp.recomputeAll();

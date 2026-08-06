@@ -12,4 +12,9 @@ export default defineAgent({
 		fallback: DEFAULT_AGENT_MODEL.id,
 		events: { "session.started": () => selectedModel() },
 	}),
+	experimental: {
+		workflow: {
+			world: "@workflow/world-postgres",
+		},
+	},
 });

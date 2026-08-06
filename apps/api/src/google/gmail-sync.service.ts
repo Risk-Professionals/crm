@@ -5,6 +5,7 @@ import {
 	GoogleSyncStatus,
 	type MailboxSyncModel as MailboxSync,
 	RecordSource,
+	SyncProvider,
 } from "@crm/db";
 import { Injectable, Logger } from "@nestjs/common";
 import { ActivityStampService } from "../crm/activity-stamp.service";
@@ -103,11 +104,12 @@ export class GmailSyncService {
 			};
 		}
 
-		if (!row.cursor) {
+		const cursor = row.cursor ?? row.providerCursor;
+		if (!cursor) {
 			return this.start(row, profile.data.historyId ?? null);
 		}
 
-		return this.incremental(row, token.accessToken, mailbox, row.cursor);
+		return this.incremental(row, token.accessToken, mailbox, cursor);
 	}
 
 	private async start(
@@ -302,13 +304,20 @@ export class GmailSyncService {
 			create: {
 				rootMessageId: parsed.rootId,
 				subject: parsed.subject,
+				provider: SyncProvider.GOOGLE,
+				providerThreadId: parsed.rootId,
+				providerUserId: row.userId,
 				companyId,
 				contactId,
 				firstMessageAt: parsed.sentAt,
 				lastMessageAt: parsed.sentAt,
 				messageCount: 0,
 			},
-			update: {},
+			update: {
+				provider: SyncProvider.GOOGLE,
+				providerThreadId: parsed.rootId,
+				providerUserId: row.userId,
+			},
 			select: { id: true, firstMessageAt: true, lastMessageAt: true },
 		});
 
@@ -318,6 +327,8 @@ export class GmailSyncService {
 				rfcMessageId: parsed.rfcMessageId,
 				syncedByUserId: row.userId,
 				gmailMessageId: parsed.gmailMessageId,
+				provider: SyncProvider.GOOGLE,
+				providerMessageId: parsed.gmailMessageId,
 				direction: outbound ? EmailDirection.OUTBOUND : EmailDirection.INBOUND,
 				fromEmail: parsed.from.email,
 				fromName: parsed.from.name,
