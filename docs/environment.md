@@ -317,9 +317,42 @@ favicon a domain serves, and the Google avatar of anyone who signs in — and
 the image optimizer, and recognising one needs no token. See
 [the agent's picture rules](./agent.md#pictures-are-copied-never-linked).
 
-## Gmail and Calendar sync
+## Microsoft 365 mail and calendar sync
 
-Always on. Same OAuth client, same callback — the two read-only scopes are added
+Microsoft-primary users grant `Mail.Read` and `Calendars.Read` through the same
+single-tenant Entra account used to sign in. `offline_access` lets Better Auth
+rotate the delegated token without storing a second provider credential. A user
+whose only account is Microsoft is sent to `/grant-access` until both data scopes
+are present. A user with an independent SSO account retains CRM access when
+Microsoft is absent or revoked and sees the connection as optional instead.
+
+Mail uses folder-scoped Microsoft Graph delta cursors for Inbox and Sent Items,
+with immutable message IDs. The first pass stores an immutable ingestion boundary
+and establishes each cursor without importing history. A `410` reconciliation
+replays the folder but still refuses previously unseen messages older than that
+boundary. Calendar uses a fixed 180-day `calendarView/delta` window and rebases it
+every seven days. Opaque next and delta links are persisted after each idempotent
+page, reconciliation generations repair tombstones, and mailbox leases keep
+scheduled, manual, disconnect, and purge operations from overlapping.
+
+A bounded pass processes Sent Items before Inbox so a reply normally establishes
+the thread before the corresponding inbound delta is considered. An unmatched
+inbound message that was discarded on an earlier pass is not later recovered
+from mailbox history when a reply arrives. Recovering it would require storing
+unmatched personal mail or a separately approved targeted conversation fetch;
+the privacy boundary wins and that earlier message remains absent.
+
+`POST /internal/sync` is the ACA Job endpoint. It is bounded, bearer-protected by
+`CRON_SECRET`, and fails closed when the secret is absent. Microsoft local
+disconnect removes stored provider tokens but does not attempt tenant-wide
+consent removal. Purging synchronized data is a separate explicit operation.
+
+Google sync remains available during the rollback window through
+`POST /internal/sync/google` and its existing account rows and cursors.
+
+## Gmail and Calendar rollback sync
+
+Always on while Google rollback credentials remain. Same OAuth client, same callback — the two read-only scopes are added
 to the existing Google provider rather than to a second one, so there is no
 extra redirect URI to register.
 
@@ -356,7 +389,7 @@ nothing, and Calendar reads from `now` onwards.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `CRON_SECRET` | in deployed environments | Bearer guard on `POST /internal/sync/google`. Vercel sends it automatically as `Authorization: Bearer $CRON_SECRET`. Minimum 16 characters; the route **fails closed** if unset, so locally the cron simply never runs. |
+| `CRON_SECRET` | in deployed environments | Bearer guard on `POST /internal/sync` and rollback-compatible `POST /internal/sync/google`. ACA Jobs send `Authorization: Bearer $CRON_SECRET`. Minimum 16 characters; both routes **fail closed** if unset. |
 
 The absences are deliberate:
 

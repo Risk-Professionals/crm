@@ -12,6 +12,7 @@ export type GraphEvent = {
 	id: string;
 	iCalUId?: string;
 	seriesMasterId?: string;
+	originalStart?: string;
 	type?: string;
 	subject?: string;
 	bodyPreview?: string;

@@ -40,8 +40,7 @@ they follow `NODE_ENV`: JSON at `log` and above in production, colourised with
 
 ## Intelligence never lives in the API
 
-This is an **agentic-first platform**. The API serves HTTP, auth, tRPC and the
-Google sync. It does not research, enrich, score, summarise, match identities or
+This is an **agentic-first platform**. The API serves HTTP, auth, tRPC and provider mailbox/calendar sync. It does not research, enrich, score, summarise, match identities or
 decide anything about a person or a company — not as a fallback, not "just the
 cheap bit", not behind a flag. That work belongs to the eve agent in
 `apps/agent`, which owns the vendor clients, the confidence model and the
@@ -144,7 +143,7 @@ called, who works here, and what do we sell — and for nothing else.
   - **`getSessionCookie()` decides signed-in, not a session lookup.** That is
     Better Auth's documented optimistic check for proxy, and it is all a
     redirect needs; every page behind it still resolves the real session
-    server-side through `requireGoogleAccess()`.
+    server-side through `requireProviderAccess()`.
   - **Nothing is cached in a cookie, and that is the second thing this got
     wrong.** The answers were kept in httpOnly `crm.onboarded` and
     `crm.research` markers with a year's life, on the reasoning that they
@@ -164,7 +163,7 @@ called, who works here, and what do we sell — and for nothing else.
     are the only two writers, and `cache-manager` is already the documented
     pattern for exactly that shape. Do not put it back in the browser.
   - **`/sign-in`, `/grant-access` and `/eve` are ungated.**
-    `requireGoogleAccess()` redirects to `/grant-access`, so gating it would
+    `requireProviderAccess()` redirects to `/grant-access`, so gating it would
     ping-pong against the onboarding redirect for anyone who signed in without
     both scopes.
   - **`/sign-in` is the only path a stranger may read**, and that list is a

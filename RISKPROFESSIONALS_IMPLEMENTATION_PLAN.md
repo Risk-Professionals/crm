@@ -25,14 +25,16 @@ Execution in progress. The source and external-service foundations below have be
 - [x] Prove the previous Google revision boots against the expanded schema before Microsoft sync rows exist.
 - [x] Add atomic mailbox leases with `FOR UPDATE SKIP LOCKED` and prove concurrent claim exclusion plus expiry recovery.
 - [x] Add Microsoft token refresh/consent classification, Graph host enforcement, throttling/reset/error handling, immutable-ID mail delta clients, and fixed-window calendar delta clients.
+- [x] Implement crash-safe Microsoft mail and calendar delta persistence, reconciliation generations, tombstones, folder moves, fixed-window rebasing, bounded leased orchestration, provider-neutral timeline links, Graph connection controls, and the mandatory Microsoft-primary consent gate.
+- [x] Add the portable PostgreSQL 17 ACA wrapper with fail-closed server startup, explicit one-time CRM/Workflow initialization, and atomic compressed logical backups.
 - [x] Run the complete repository validation suite: typecheck, lint, migrations, builds, rollback compatibility, and 512 passing tests.
 
 ### In progress and still required before staging
 
-- [ ] Implement crash-safe Microsoft mail delta baseline/incremental page application, tombstones, folder moves, and `410` reconciliation.
-- [ ] Implement Microsoft calendar delta persistence, recurrence/occurrence identity, tombstones, fixed-window horizon advancement, and `410` reconciliation.
-- [ ] Add provider-neutral sync orchestration, Microsoft connection procedures, ACA Job endpoint, and bounded scheduled/manual execution.
-- [ ] Replace Google grant/connection/timeline surfaces with Microsoft Graph consent, reconnect, status, sync, purge, and provider-neutral links.
+- [x] Implement crash-safe Microsoft mail delta baseline/incremental page application, tombstones, folder moves, and `410` reconciliation.
+- [x] Implement Microsoft calendar delta persistence, recurrence/occurrence identity, tombstones, fixed-window horizon advancement, and `410` reconciliation.
+- [x] Add provider-neutral sync orchestration, Microsoft connection procedures, ACA Job endpoint, and bounded scheduled/manual execution.
+- [x] Replace Google grant/connection/timeline surfaces with Microsoft Graph consent, reconnect, status, sync, purge, and provider-neutral links.
 - [ ] Complete real-tenant Entra callback, account-linking, refresh-token rotation, revoked-consent, throttling, paging, and crash-replay acceptance.
 - [ ] Merge this source revision, pull the reviewed squashed subtree into `Risk-Professionals/directory`, and retain both directory/source provenance markers.
 - [ ] Add and review the separate CRM VNet, ACA environments, Key Vault, identities, PostgreSQL NFS storage, migration/Workflow bootstrap/backup Jobs, DNS, certificates, deployment workflows, smoke tests, and rollback operations.

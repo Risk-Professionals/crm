@@ -510,9 +510,11 @@ model MailboxSync {
   folderId           String?
   windowStart        DateTime?
   windowEnd          DateTime?
-  leaseOwner         String?
-  leaseExpiresAt     DateTime?
-  retryCount         Int                @default(0)
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  retryCount             Int                @default(0)
+  reconciliationStartedAt DateTime?
+  ingestAfter            DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -565,6 +567,8 @@ model EmailMessage {
   provider          SyncProvider?
   providerMessageId String?
   providerWebUrl    String?
+  providerFolderId  String?
+  providerSeenAt    DateTime?
 
   direction  EmailDirection
   fromEmail  String
@@ -579,6 +583,7 @@ model EmailMessage {
 
   @@unique([syncedByUserId, provider, providerMessageId])
   @@index([threadId, sentAt])
+  @@index([syncedByUserId, provider, providerFolderId])
   @@map("emailMessage")
 }
 
@@ -608,6 +613,7 @@ model CalendarEvent {
   provider        SyncProvider?
   providerEventId String?
   providerWebUrl  String?
+  providerSeenAt  DateTime?
 
   attendees CalendarAttendee[]
   activity  Activity?
@@ -618,6 +624,7 @@ model CalendarEvent {
   @@unique([iCalUid, originalStartTime])
   @@unique([syncedByUserId, provider, providerEventId])
   @@index([companyId, startsAt])
+  @@index([syncedByUserId, provider, providerSeenAt])
   @@index([contactId, startsAt])
   @@map("calendarEvent")
 }

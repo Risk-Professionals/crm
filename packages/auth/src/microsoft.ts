@@ -1,7 +1,12 @@
 import { APIError } from "better-auth/api";
 
-export const MICROSOFT_PROVIDER_ID = "microsoft";
-export const MICROSOFT_GRAPH_SCOPES = ["Mail.Read", "Calendars.Read"] as const;
+export {
+	hasMicrosoftGraphScopes,
+	MICROSOFT_GRAPH_SCOPES,
+	MICROSOFT_PROVIDER_ID,
+	needsMicrosoftGraphGrant,
+	signsInWithMicrosoft,
+} from "./microsoft-scopes";
 
 export function microsoftProfileToUser(
 	profile: Record<string, unknown>,

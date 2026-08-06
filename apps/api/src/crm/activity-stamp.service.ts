@@ -24,26 +24,30 @@ export class ActivityStampService {
 
 	constructor(@InjectDatabase() private readonly db: Db) {}
 
-	async touch(target: ActivityTarget, at: Date): Promise<void> {
+	async touch(
+		target: ActivityTarget,
+		at: Date,
+		client: Prisma.TransactionClient = this.db,
+	): Promise<void> {
 		const stale = {
 			OR: [{ lastActivityAt: null }, { lastActivityAt: { lt: at } }],
 		};
 
 		await Promise.all([
 			target.companyId
-				? this.db.company.updateMany({
+				? client.company.updateMany({
 						where: { id: target.companyId, ...stale },
 						data: { lastActivityAt: at },
 					})
 				: null,
 			target.contactId
-				? this.db.contact.updateMany({
+				? client.contact.updateMany({
 						where: { id: target.contactId, ...stale },
 						data: { lastActivityAt: at },
 					})
 				: null,
 			target.dealId
-				? this.db.deal.updateMany({
+				? client.deal.updateMany({
 						where: { id: target.dealId, ...stale },
 						data: { lastActivityAt: at },
 					})
@@ -147,7 +151,46 @@ export class ActivityStampService {
 			WHERE r.id IN (${PrismaNamespace.join(ids)})`;
 	}
 
-	async recomputeAll(): Promise<void> {
+	async recomputeAll(client?: Prisma.TransactionClient): Promise<void> {
+		if (client) {
+			await client.$executeRaw`
+				UPDATE "company" c
+				SET "lastActivityAt" = a.max
+				FROM (
+					SELECT "companyId" AS id, MAX("createdAt") AS max
+					FROM "activity" WHERE "companyId" IS NOT NULL GROUP BY "companyId"
+				) a
+				WHERE c.id = a.id AND c."lastActivityAt" IS DISTINCT FROM a.max`;
+			await client.$executeRaw`
+				UPDATE "company" SET "lastActivityAt" = NULL
+				WHERE "lastActivityAt" IS NOT NULL
+				AND id NOT IN (SELECT "companyId" FROM "activity" WHERE "companyId" IS NOT NULL)`;
+			await client.$executeRaw`
+				UPDATE "contact" c
+				SET "lastActivityAt" = a.max
+				FROM (
+					SELECT "contactId" AS id, MAX("createdAt") AS max
+					FROM "activity" WHERE "contactId" IS NOT NULL GROUP BY "contactId"
+				) a
+				WHERE c.id = a.id AND c."lastActivityAt" IS DISTINCT FROM a.max`;
+			await client.$executeRaw`
+				UPDATE "contact" SET "lastActivityAt" = NULL
+				WHERE "lastActivityAt" IS NOT NULL
+				AND id NOT IN (SELECT "contactId" FROM "activity" WHERE "contactId" IS NOT NULL)`;
+			await client.$executeRaw`
+				UPDATE "deal" d
+				SET "lastActivityAt" = a.max
+				FROM (
+					SELECT "dealId" AS id, MAX("createdAt") AS max
+					FROM "activity" WHERE "dealId" IS NOT NULL GROUP BY "dealId"
+				) a
+				WHERE d.id = a.id AND d."lastActivityAt" IS DISTINCT FROM a.max`;
+			await client.$executeRaw`
+				UPDATE "deal" SET "lastActivityAt" = NULL
+				WHERE "lastActivityAt" IS NOT NULL
+				AND id NOT IN (SELECT "dealId" FROM "activity" WHERE "dealId" IS NOT NULL)`;
+			return;
+		}
 		await this.db.$transaction([
 			this.db.$executeRaw`
 				UPDATE "company" c

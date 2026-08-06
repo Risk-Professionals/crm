@@ -68,8 +68,8 @@ describe("MicrosoftTokenService", () => {
 		});
 	});
 
-	it("settles refresh failures as reconnect-required", async () => {
-		const { db } = database("Calendars.Read");
+	it("clears data-access tokens after an invalid grant", async () => {
+		const { db, seen } = database("Calendars.Read");
 		const tokens = new TestMicrosoftTokenService(db, async () => {
 			throw new Error("invalid_grant");
 		});
@@ -78,6 +78,21 @@ describe("MicrosoftTokenService", () => {
 			outcome: "needs-reconnect",
 			reason: "Microsoft would not refresh the access token.",
 		});
+		expect(seen.update).toBeDefined();
+	});
+
+	it("preserves tokens after a transient refresh failure", async () => {
+		const { db, seen } = database("Calendars.Read");
+		const tokens = new TestMicrosoftTokenService(db, async () => {
+			throw new Error("upstream timeout");
+		});
+
+		expect(await tokens.accessTokenFor("user-1", "calendar")).toEqual({
+			outcome: "failed",
+			reason: "Microsoft token refresh is temporarily unavailable.",
+			retryable: true,
+		});
+		expect(seen.update).toBeUndefined();
 	});
 
 	it("clears data-access tokens without deleting the sign-in account", async () => {

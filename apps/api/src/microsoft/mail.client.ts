@@ -85,7 +85,7 @@ export class MicrosoftMailClient {
 				`${GRAPH_BASE_URL}/me/mailFolders/${encodeURIComponent(options.folderId)}/messages/delta`,
 			accessToken,
 			{
-				prefer: ['IdType="ImmutableId"'],
+				prefer: ['IdType="ImmutableId"', 'outlook.body-content-type="text"'],
 				...(cursor ? {} : { params: { $select: MESSAGE_FIELDS, $top: 50 } }),
 			},
 		);

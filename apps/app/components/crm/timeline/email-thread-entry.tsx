@@ -30,7 +30,7 @@ export function EmailThreadEntry({
 	const [opened, setOpened] = useState(false);
 
 	const thread = useQuery({
-		...trpc.google.thread.queryOptions({ threadId }),
+		...trpc.sync.thread.queryOptions({ threadId }),
 		enabled: opened,
 	});
 
@@ -69,14 +69,14 @@ export function EmailThreadEntry({
 									direction={message.direction}
 									body={message.body}
 									action={
-										message.gmailUrl ? (
+										message.providerUrl ? (
 											<a
-												href={message.gmailUrl}
+												href={message.providerUrl}
 												target="_blank"
 												rel="noreferrer"
 												className="text-muted-foreground underline underline-offset-3 hover:text-foreground"
 											>
-												Open in Gmail
+												{message.providerLabel}
 											</a>
 										) : null
 									}

@@ -28,7 +28,10 @@ describe("Microsoft delta clients", () => {
 		expect(calls[0]?.url).toBe(
 			"https://graph.microsoft.com/v1.0/me/mailFolders/folder%2Fid/messages/delta",
 		);
-		expect(calls[0]?.options.prefer).toEqual(['IdType="ImmutableId"']);
+		expect(calls[0]?.options.prefer).toEqual([
+			'IdType="ImmutableId"',
+			'outlook.body-content-type="text"',
+		]);
 		expect(calls[0]?.options.params?.$select).toContain("conversationId");
 	});
 
@@ -42,7 +45,9 @@ describe("Microsoft delta clients", () => {
 
 		expect(calls[0]).toEqual({
 			url: cursor,
-			options: { prefer: ['IdType="ImmutableId"'] },
+			options: {
+				prefer: ['IdType="ImmutableId"', 'outlook.body-content-type="text"'],
+			},
 		});
 	});
 

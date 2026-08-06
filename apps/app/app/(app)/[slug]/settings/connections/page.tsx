@@ -53,7 +53,7 @@ async function Connections({
 	const [{ error, connection }] = await Promise.all([
 		searchParams,
 		Promise.all([
-			queryClient.prefetchQuery(trpc.sso.microsoftConnection.queryOptions()),
+			queryClient.prefetchQuery(trpc.sync.status.queryOptions()),
 			queryClient.prefetchQuery(trpc.google.status.queryOptions()),
 		]),
 	]);

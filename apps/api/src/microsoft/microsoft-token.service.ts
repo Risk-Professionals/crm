@@ -11,12 +11,25 @@ import {
 export type MicrosoftTokenResult =
 	| { outcome: "ok"; accessToken: string }
 	| { outcome: "not-connected"; reason: string }
-	| { outcome: "needs-reconnect"; reason: string };
+	| { outcome: "needs-reconnect"; reason: string }
+	| { outcome: "failed"; reason: string; retryable: true };
 
 export function parseProviderScopes(
 	scope: string | null | undefined,
 ): string[] {
 	return scope?.split(/[\s,]+/).filter(Boolean) ?? [];
+}
+
+export function isInvalidGrant(error: unknown): boolean {
+	const value =
+		error instanceof Error
+			? `${error.name} ${error.message}`
+			: typeof error === "string"
+				? error
+				: String(JSON.stringify(error));
+	return /invalid[_ -]?grant|invalid refresh token|refresh token.+(?:expired|revoked)/i.test(
+		value,
+	);
 }
 
 @Injectable()
@@ -69,6 +82,8 @@ export class MicrosoftTokenService {
 
 			return { outcome: "ok", accessToken };
 		} catch (error) {
+			const invalidGrant = isInvalidGrant(error);
+			if (invalidGrant) await this.disconnectDataAccess(userId);
 			this.logger.warn({
 				message: "Microsoft token refresh failed",
 				userId,
@@ -76,10 +91,16 @@ export class MicrosoftTokenService {
 				reason: error instanceof Error ? error.message : String(error),
 			});
 
-			return {
-				outcome: "needs-reconnect",
-				reason: "Microsoft would not refresh the access token.",
-			};
+			return invalidGrant
+				? {
+						outcome: "needs-reconnect",
+						reason: "Microsoft would not refresh the access token.",
+					}
+				: {
+						outcome: "failed",
+						reason: "Microsoft token refresh is temporarily unavailable.",
+						retryable: true,
+					};
 		}
 	}
 

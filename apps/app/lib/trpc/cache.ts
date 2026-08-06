@@ -18,6 +18,7 @@ export type CrmCache = {
 	removed(record: RemovedRecord): Promise<void>;
 	activity(options?: Options): Promise<void>;
 	google(options?: Options): Promise<void>;
+	sync(options?: Options): Promise<void>;
 	settings(options?: Options): Promise<void>;
 	workspace(options?: Options): Promise<void>;
 	sso(options?: Options): Promise<void>;
@@ -149,6 +150,19 @@ export function useCrmCache(): CrmCache {
 		google: (options) =>
 			run(
 				[trpc.google.status.queryKey()],
+				[
+					...activityKeys(),
+					...listKeys(),
+					trpc.companies.byId.queryKey(),
+					trpc.contacts.byId.queryKey(),
+					trpc.dashboard.summary.queryKey(),
+				],
+				options,
+			),
+
+		sync: (options) =>
+			run(
+				[trpc.sync.status.queryKey()],
 				[
 					...activityKeys(),
 					...listKeys(),

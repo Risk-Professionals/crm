@@ -1,4 +1,9 @@
-import { auth, needsGoogleGrant, type Session } from "@crm/auth";
+import {
+	auth,
+	needsGoogleGrant,
+	needsMicrosoftGraphGrant,
+	type Session,
+} from "@crm/auth";
 import { db } from "@crm/db";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -26,12 +31,15 @@ export const signInAccounts = cache(async (userId: string) =>
 	}),
 );
 
-export async function requireGoogleAccess(): Promise<Session> {
+export async function requireProviderAccess(): Promise<Session> {
 	const session = await requireSession();
+	const accounts = await signInAccounts(session.user.id);
 
-	if (needsGoogleGrant(await signInAccounts(session.user.id))) {
+	if (needsMicrosoftGraphGrant(accounts) || needsGoogleGrant(accounts)) {
 		redirect("/grant-access");
 	}
 
 	return session;
 }
+
+export const requireGoogleAccess = requireProviderAccess;

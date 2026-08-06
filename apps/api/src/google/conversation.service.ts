@@ -21,6 +21,8 @@ export class ConversationService {
 					orderBy: { sentAt: "asc" },
 					select: {
 						id: true,
+						provider: true,
+						providerWebUrl: true,
 						direction: true,
 						fromEmail: true,
 						fromName: true,
@@ -52,6 +54,15 @@ export class ConversationService {
 				sentAt: message.sentAt.toISOString(),
 				recipients: recipientsOf(message.recipients),
 				fromImageUrl: faces.get(message.fromEmail.toLowerCase()) ?? null,
+				providerUrl:
+					message.providerWebUrl ??
+					(message.gmailMessageId
+						? `https://mail.google.com/mail/u/0/#all/${message.gmailMessageId}`
+						: null),
+				providerLabel:
+					message.provider === "MICROSOFT"
+						? "Open in Outlook"
+						: "Open in Gmail",
 				gmailUrl: message.gmailMessageId
 					? `https://mail.google.com/mail/u/0/#all/${message.gmailMessageId}`
 					: null,
@@ -103,6 +114,8 @@ export class ConversationService {
 				isAllDay: true,
 				status: true,
 				organizerEmail: true,
+				provider: true,
+				providerWebUrl: true,
 				company: { select: { id: true, name: true } },
 				contact: { select: { id: true, firstName: true, lastName: true } },
 				attendees: {
@@ -128,6 +141,11 @@ export class ConversationService {
 			...event,
 			startsAt: event.startsAt.toISOString(),
 			endsAt: event.endsAt.toISOString(),
+			providerUrl: event.providerWebUrl,
+			providerLabel:
+				event.provider === "MICROSOFT"
+					? "Open in Outlook"
+					: "Open in Google Calendar",
 			attendees: event.attendees.map(({ contact, ...attendee }) => ({
 				...attendee,
 				imageUrl: contact?.imageUrl ?? null,

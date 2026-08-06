@@ -1,8 +1,14 @@
 import { Module } from "@nestjs/common";
-import { SyncLeaseService } from "./sync-lease.service";
+import { GoogleModule } from "../google/google.module";
+import { MicrosoftModule } from "../microsoft/microsoft.module";
+import { TrpcModule } from "../trpc/trpc.module";
+import { ProviderSyncController } from "./sync.controller";
+import { SyncRouter } from "./sync.router";
+import { SyncCoreModule } from "./sync-core.module";
 
 @Module({
-	providers: [SyncLeaseService],
-	exports: [SyncLeaseService],
+	imports: [TrpcModule, SyncCoreModule, GoogleModule, MicrosoftModule],
+	controllers: [ProviderSyncController],
+	providers: [SyncRouter],
 })
 export class SyncModule {}
