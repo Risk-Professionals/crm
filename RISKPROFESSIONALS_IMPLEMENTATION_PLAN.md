@@ -2,9 +2,9 @@
 
 ## Status
 
-Execution in progress. The source and external-service foundations below have been implemented and validated, but both CRM deployment kill switches remain disabled. This document still does not authorize a production cutover by itself; the open acceptance gates remain mandatory.
+Execution in progress. The Microsoft Graph source integration and the isolated Azure staging stack have been implemented, reviewed, merged, and deployed. `CRM_STAGING_READY` is enabled; `CRM_PRODUCTION_READY` remains disabled. This document still does not authorize a production cutover by itself; the open real-tenant, shared-mailbox, recovery, and production acceptance gates remain mandatory.
 
-## Execution progress — 2026-08-06
+## Execution progress — 2026-08-07
 
 ### Completed and validated
 
@@ -27,25 +27,33 @@ Execution in progress. The source and external-service foundations below have be
 - [x] Add Microsoft token refresh/consent classification, Graph host enforcement, throttling/reset/error handling, immutable-ID mail delta clients, and fixed-window calendar delta clients.
 - [x] Implement crash-safe Microsoft mail and calendar delta persistence, reconciliation generations, tombstones, folder moves, fixed-window rebasing, bounded leased orchestration, provider-neutral timeline links, Graph connection controls, and the mandatory Microsoft-primary consent gate.
 - [x] Add the portable PostgreSQL 17 ACA wrapper with fail-closed server startup, explicit one-time CRM/Workflow initialization, and atomic compressed logical backups.
+- [x] Merge the Microsoft Graph source revision as `Risk-Professionals/crm` commit `1923226176b5b2172867154a8c4c2e566e2be176` and import that exact source split through the reviewed squashed `Risk-Professionals/directory` subtree.
+- [x] Add and review the isolated CRM Bicep, phased staging/production workflows, per-secret RBAC, PostgreSQL maintenance controls, Hostinger DNS automation, managed-certificate flow, smoke checks, rollback scripts, and deployment runbooks.
+- [x] Deploy the isolated Australia East staging VNet, workload-profile ACA environment, Key Vault, identities, Log Analytics, Application Insights, backup storage, and Azure Files NFS 4.1 account using `PremiumV2_LRS`.
+- [x] Provision the NFS share at 32 GiB, 3,000 IOPS, and 100 MiB/s with subnet-restricted access and mount it only into PostgreSQL and the initialization Job.
+- [x] Run the fail-closed PostgreSQL initialization Job, start the singleton PostgreSQL 17 app, apply all Prisma migrations, and run the PostgreSQL Workflow bootstrap repeatedly and idempotently.
+- [x] Deploy healthy web, internal API, internal agent, and internal TCP PostgreSQL apps; create `crm-staging.riskprofs.com` DNS records; bind a succeeded Azure managed certificate; and verify the public health endpoint.
+- [x] Run the scheduled Microsoft Graph Job successfully and produce a verified logical backup generation through the managed-identity backup Job.
 - [x] Run the complete repository validation suite: typecheck, lint, migrations, builds, rollback compatibility, and 512 passing tests.
 
-### In progress and still required before staging
+### In progress and still required before production
 
 - [x] Implement crash-safe Microsoft mail delta baseline/incremental page application, tombstones, folder moves, and `410` reconciliation.
 - [x] Implement Microsoft calendar delta persistence, recurrence/occurrence identity, tombstones, fixed-window horizon advancement, and `410` reconciliation.
 - [x] Add provider-neutral sync orchestration, Microsoft connection procedures, ACA Job endpoint, and bounded scheduled/manual execution.
 - [x] Replace Google grant/connection/timeline surfaces with Microsoft Graph consent, reconnect, status, sync, purge, and provider-neutral links.
+- [ ] Add the required shared-mailbox integration described below, including delegated shared-mail scope, explicit mailbox configuration, per-mailbox cursors/leases, and real-tenant acceptance.
 - [ ] Complete real-tenant Entra callback, account-linking, refresh-token rotation, revoked-consent, throttling, paging, and crash-replay acceptance.
-- [ ] Merge this source revision, pull the reviewed squashed subtree into `Risk-Professionals/directory`, and retain both directory/source provenance markers.
-- [ ] Add and review the separate CRM VNet, ACA environments, Key Vault, identities, PostgreSQL NFS storage, migration/Workflow bootstrap/backup Jobs, DNS, certificates, deployment workflows, smoke tests, and rollback operations.
+- [ ] Restore the staging logical backup into fresh NFS storage and complete PostgreSQL replacement, parked-workflow recovery, and scheduled-work recovery drills.
 
 ### Production gates remain open
 
-- [ ] No CRM application or database has been deployed to Azure.
-- [ ] No production database cutover or production write acceptance has occurred.
-- [ ] PostgreSQL replacement, backup/restore, parked-workflow recovery, and scheduled-work recovery drills have not run on ACA.
-- [ ] Microsoft Graph has not replaced Gmail/Google Calendar yet, so Google credentials must not be retired.
-- [ ] `CRM_STAGING_READY` and `CRM_PRODUCTION_READY` remain `false`.
+- [x] The CRM application and singleton NFS-backed PostgreSQL database are deployed to Azure staging.
+- [x] `CRM_STAGING_READY` is enabled and the isolated staging resources are running.
+- [ ] Complete production application/database deployment and production write acceptance.
+- [ ] Complete PostgreSQL replacement, backup/restore, parked-workflow recovery, and scheduled-work recovery drills on ACA.
+- [ ] Complete Microsoft Graph real-tenant and shared-mailbox acceptance before retiring Gmail/Google Calendar or their rollback credentials.
+- [ ] Enable `CRM_PRODUCTION_READY`; it remains `false` until the production gates close.
 
 ## Objective
 
@@ -439,9 +447,28 @@ Request the minimum delegated Microsoft scopes needed for the current behavior. 
 - `offline_access`.
 - `User.Read`.
 - `Mail.Read`.
+- `Mail.Read.Shared`.
 - `Calendars.Read`.
 
-Confirm tenant policy and admin-consent requirements before rollout. The CRM does not need mail send, calendar write, directory-wide read, or application permissions for the existing feature set.
+Confirm tenant policy and admin-consent requirements before rollout. The CRM does not need mail send, calendar write, directory-wide read, or application permissions for the existing personal-mailbox feature set.
+
+### Required shared-mailbox support
+
+Risk Professionals uses shared inboxes as first-class CRM sources. The current implementation synchronizes only the delegated user's `/me` Inbox and Sent Items; it does not discover or read shared mailboxes. Complete shared-mailbox support before Microsoft Graph is accepted as the Gmail replacement.
+
+Add the delegated `Mail.Read.Shared` scope and tenant-wide admin consent. Do not enable interactive sign-in on shared mailboxes and do not require a Better Auth account for `sales@`, `support@`, `info@`, or another shared address. A real assigned employee signs into the CRM once through Entra, Exchange grants that employee Full Access to the approved shared mailbox, and the CRM uses the employee's delegated token to read only explicitly configured shared mailboxes.
+
+Implement:
+
+- An administrator-managed allow-list of shared mailbox addresses; never enumerate or ingest every mailbox the caller can access.
+- A reviewed assignment from each shared mailbox to an active delegated user whose Exchange permissions authorize access, including a safe reassignment procedure when that employee leaves or loses access.
+- Graph mail delta endpoints rooted at `/users/{shared-mailbox-UPN}/mailFolders/{folder}/messages/delta`, while preserving opaque links, immutable IDs, Inbox/Sent Items folder separation, the no-backfill boundary, tombstones, reconciliation generations, persisted retry state, and crash replay.
+- Provider-neutral mailbox identity in persistence so personal and shared mailbox cursors, leases, messages, threads, purge operations, status, and errors cannot collide.
+- Shared-mailbox status, sync-now, reconnect/reassign, disable, and provider-isolated purge controls. A failure or throttle in one shared mailbox must not block personal mailboxes or other shared mailboxes.
+- Preservation of the current participant rule that shared addresses such as `sales@`, `support@`, `info@`, `accounts@`, and `billing@` are not created as people. External human correspondents must still be matched normally.
+- Acceptance tests for Full Access granted/removed, token-owner reassignment, shared Sent Items behavior, concurrent personal/shared sync, paging, throttling, `410`, folder moves, tombstones, process death, and no cross-mailbox deletion or cursor advancement.
+
+The preferred model remains delegated least privilege. Do not switch to tenant-wide `Mail.Read` application permission unless a separate security review approves an Exchange application access policy and the broader app-only threat model.
 
 Replace `requireGoogleAccess()` with a provider-neutral or Microsoft-specific gate and preserve the current distinction between sign-in and an optional linked mailbox:
 
@@ -551,6 +578,9 @@ Map refresh `invalid_grant` to the provider-neutral reconnect state rather than 
 - Overlapping scheduled and manual syncs claim one mailbox once and recover after a crashed lease.
 - The sync cursor survives API and PostgreSQL container replacement.
 - Existing Google-derived CRM history remains readable after Google is disabled.
+- An assigned employee can synchronize each explicitly configured shared mailbox without an interactive sign-in for the shared address, while an unassigned employee and an unconfigured mailbox are refused.
+- Removing Exchange Full Access or reassigning the delegated token owner produces an actionable mailbox-specific state without losing another personal/shared mailbox cursor or data.
+- Shared Inbox and shared Sent Items paging, throttling, tombstones, folder moves, `410` reconciliation, crash replay, and overlapping manual/scheduled execution pass without cross-mailbox loss or duplication.
 
 ### Microsoft rollback contract
 
@@ -565,7 +595,7 @@ Deploy PostgreSQL 17 as a singleton internal Container App.
 
 ### Storage
 
-- Create a dedicated classic Azure Files NFS 4.1 SSD share.
+- Create a dedicated provisioned-v2 Azure Files NFS 4.1 SSD share in a `FileStorage` account using `PremiumV2_LRS`.
 - Use a custom VNet and private storage access.
 - Mount the share at a stable parent path such as `/mnt/postgres`.
 - Set `PGDATA=/mnt/postgres/pgdata`.
